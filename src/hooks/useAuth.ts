@@ -22,10 +22,15 @@ export const useAuth = () => {
             setUser({ id: firebaseUser.uid, ...userData });
           } else {
             console.error('User document does not exist for:', firebaseUser.uid);
+            // Sign out the user since they don't have a valid profile
+            console.log('Signing out user with missing document');
+            await auth.signOut();
             setUser(null);
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
+          // Sign out on error to prevent stuck state
+          await auth.signOut();
           setUser(null);
         }
       } else {
