@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { UserPlus, Mail, Lock, User, Building2 } from 'lucide-react';
@@ -31,6 +31,9 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
+    let firebaseUserCreated = false;
+    let createdFirebaseUser: FirebaseUser | null = null;
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -54,6 +57,9 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
         formData.email, 
         formData.password
       );
+      
+      firebaseUserCreated = true;
+      createdFirebaseUser = userCredential.user;
       
       console.log('User account created:', userCredential.user.uid);
 
@@ -95,6 +101,17 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
 
     } catch (error: any) {
       console.error('Signup error:', error);
+      
+      // If Firebase user was created but Firestore operations failed, clean up
+      if (firebaseUserCreated && createdFirebaseUser) {
+        try {
+          console.log('Cleaning up Firebase user due to Firestore error');
+          await createdFirebaseUser.delete();
+          console.log('Firebase user cleaned up successfully');
+        } catch (deleteError) {
+          console.error('Failed to clean up Firebase user:', deleteError);
+        }
+      }
       
       let errorMessage = 'Failed to create account';
       
