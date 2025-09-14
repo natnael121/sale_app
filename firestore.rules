@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to get user's organization ID
+    function getUserOrg() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId : null;
+    }
+    
+    // Helper function to check if user belongs to same organization as resource
+    function sameOrganization(orgId) {
+      return isAuthenticated() && getUserOrg() == orgId;
+    }
+    
+    // Helper function to check user role
+    function hasRole(role) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return hasRole('admin');
+    }
+    
+    // Helper function to check if user is admin or supervisor
+    function isAdminOrSupervisor() {
+      return hasRole('admin') || hasRole('supervisor');
+    }
+    
+    // Helper function to check if user can manage leads
+    function canManageLeads() {
+      return hasRole('admin') || hasRole('supervisor') || hasRole('call_center');
+    }
+    
+    // Organizations - Only admins can create/manage organizations
+    match /organizations/{orgId} {
+      allow read: if sameOrganization(orgId);
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if sameOrganization(orgId) && isAdmin();
+      allow delete: if sameOrganization(orgId) && isAdmin();
+    }
+    
+    // Users - Allow creation by the user themselves, read/write with proper permissions
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        (exists(/databases/$(database)/documents/users/$(userId)) && 
+         sameOrganization(resource.data.organizationId))
+      );
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        (sameOrganization(resource.data.organizationId) && isAdmin())
+      );
+      allow delete: if sameOrganization(resource.data.organizationId) && isAdmin();
+    }
+    
+    // Leads - Organization-scoped access with role-based permissions
+    match /leads/{leadId} {
+      allow read: if sameOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && (
+        sameOrganization(request.resource.data.organizationId) && (
+          canManageLeads() || hasRole('field_agent')
+        )
+      );
+      allow update: if sameOrganization(resource.data.organizationId) && (
+        isAdminOrSupervisor() ||
+        resource.data.assignedTo == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid ||
+        (hasRole('call_center') && (!('assignedTo' in resource.data) || resource.data.assignedTo == null))
+      );
+      allow delete: if sameOrganization(resource.data.organizationId) && isAdminOrSupervisor();
+    }
+    
+    // Meetings - Organization-scoped with agent restrictions  
+    match /meetings/{meetingId} {
+      allow read: if sameOrganization(resource.data.organizationId);
+      allow create: if isAuthenticated() && 
+        sameOrganization(request.resource.data.organizationId) && 
+        canManageLeads();
+      allow update: if sameOrganization(resource.data.organizationId) && (
+        isAdminOrSupervisor() ||
+        resource.data.assignedTo == request.auth.uid ||
+        resource.data.scheduledBy == request.auth.uid
+      );
+      allow delete: if sameOrganization(resource.data.organizationId) && isAdminOrSupervisor();
+    }
+    
+    // Commissions - Read-only for agents, full access for admins/supervisors
+    match /commissions/{commissionId} {
+      allow read: if sameOrganization(resource.data.organizationId) && (
+        isAdminOrSupervisor() || resource.data.userId == request.auth.uid
+      );
+      allow create, update: if sameOrganization(request.resource.data.organizationId) && isAdminOrSupervisor();
+      allow delete: if sameOrganization(resource.data.organizationId) && isAdmin();
+    }
+    
+    // Analytics - Read-only for organization members, write access for admins/supervisors
+    match /analytics/{analyticsId} {
+      allow read: if sameOrganization(resource.data.organizationId);
+      allow create, update: if isAuthenticated() && 
+        sameOrganization(request.resource.data.organizationId) && 
+        isAdminOrSupervisor();
+      allow delete: if sameOrganization(resource.data.organizationId) && isAdmin();
+    }
+    
+    // Lead Notes (subcollection of leads)
+    match /leads/{leadId}/notes/{noteId} {
+      allow read: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId);
+      allow create: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) && 
+        resource.data.createdBy == request.auth.uid;
+      allow delete: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) && 
+        (resource.data.createdBy == request.auth.uid || isAdminOrSupervisor());
+    }
+    
+    // Lead Communications (subcollection of leads)
+    match /leads/{leadId}/communications/{commId} {
+      allow read: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId);
+      allow create: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) && 
+        resource.data.createdBy == request.auth.uid;
+      allow delete: if exists(/databases/$(database)/documents/leads/$(leadId)) && 
+        sameOrganization(get(/databases/$(database)/documents/leads/$(leadId)).data.organizationId) && 
+        (resource.data.createdBy == request.auth.uid || isAdminOrSupervisor());
+    }
+    
+    // System settings - Admin only
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Audit logs - Read-only for admins/supervisors
+    match /audit_logs/{logId} {
+      allow read: if sameOrganization(resource.data.organizationId) && isAdminOrSupervisor();
+      allow create: if isAuthenticated(); // System can create audit logs
+    }
+  }
+}
