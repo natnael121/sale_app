@@ -47,6 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
       case 'call_center':
         return [
           ...baseItems,
+          { to: '/calling', icon: Phone, label: 'Calling' },
           { to: '/leads', icon: UserCheck, label: 'Leads' },
           { to: '/meetings', icon: Calendar, label: 'Meetings' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },

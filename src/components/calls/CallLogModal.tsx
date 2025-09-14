@@ -35,6 +35,14 @@ const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave }) =>
       duration: duration > 0 ? duration : undefined,
       notes: notes || undefined
     });
+    
+    // Reset form
+    setPicked(null);
+    setResult('');
+    setDuration(0);
+    setNotes('');
+    setNextActionDate('');
+    setNextAction('');
   };
 
   const pickedOptions = [

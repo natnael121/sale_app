@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User, Lead, Communication, CallOutcome } from '../../types';
-import { Phone, PhoneCall, Clock, Target, TrendingUp, Calendar, Mail, MessageSquare, User as UserIcon, MapPin, Plus } from 'lucide-react';
-import CallLogModal from '../calls/CallLogModal';
+import { Phone, PhoneCall, Clock, Target, TrendingUp, Calendar, Mail, MessageSquare, User as UserIcon, MapPin, Plus, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface CallCenterDashboardProps {
   user: User;
@@ -16,13 +16,13 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
     meetingsScheduled: 12,
     conversionRate: 15.5,
     dailyTarget: 50,
-    avgCallDuration: 4.2
+    avgCallDuration: 4.2,
+    leadsToCall: 0,
+    followUps: 0
   });
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [showCallModal, setShowCallModal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'interested'>('all');
 
   useEffect(() => {
@@ -44,78 +44,52 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
       } as Lead));
       
       setLeads(leadsData);
+
+      // Calculate callable leads and follow-ups
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const callableLeads = leadsData.filter(lead => {
+        if (lead.status === 'converted' || lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
+          return false;
+        }
+        
+        const lastComm = lead.communications?.[lead.communications.length - 1];
+        if (lastComm) {
+          const lastCommDate = new Date(lastComm.createdAt);
+          const daysSinceLastComm = Math.floor((Date.now() - lastCommDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (lastComm.outcome && !lastComm.outcome.picked && 
+              (lastComm.outcome.result === 'switched_off' || lastComm.outcome.result === 'no_answer') &&
+              daysSinceLastComm < 1) {
+            return false;
+          }
+
+          if (lastComm.outcome?.nextActionDate) {
+            const nextActionDate = new Date(lastComm.outcome.nextActionDate);
+            nextActionDate.setHours(0, 0, 0, 0);
+            return nextActionDate <= today;
+          }
+        }
+        
+        return true;
+      });
+
+      const followUps = callableLeads.filter(lead => {
+        const lastComm = lead.communications?.[lead.communications.length - 1];
+        return lastComm?.outcome?.nextActionDate;
+      });
+
+      setStats(prev => ({
+        ...prev,
+        leadsToCall: callableLeads.length,
+        followUps: followUps.length
+      }));
+      
     } catch (error) {
       console.error('Error fetching leads:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCall = (lead: Lead) => {
-    setSelectedLead(lead);
-    setShowCallModal(true);
-  };
-
-  const handleCallLog = async (callData: {
-    outcome: CallOutcome;
-    duration?: number;
-    notes?: string;
-  }) => {
-    if (!selectedLead) return;
-
-    try {
-      // Add communication record
-      const communication: Omit<Communication, 'id'> = {
-        type: 'call',
-        direction: 'outbound',
-        outcome: callData.outcome,
-        duration: callData.duration,
-        content: callData.notes,
-        createdBy: user.id,
-        createdAt: new Date()
-      };
-
-      // Update lead with new communication
-      const updatedCommunications = [...(selectedLead.communications || []), communication];
-      
-      // Update lead status based on call outcome
-      let newStatus = selectedLead.status;
-      if (callData.outcome.picked) {
-        switch (callData.outcome.result) {
-          case 'interested':
-            newStatus = 'interested';
-            break;
-          case 'meeting_setup':
-            newStatus = 'meeting_scheduled';
-            break;
-          case 'not_interested':
-            newStatus = 'closed';
-            break;
-          default:
-            newStatus = 'contacted';
-        }
-      } else {
-        newStatus = 'contacted';
-      }
-
-      await updateDoc(doc(db, 'leads', selectedLead.id), {
-        communications: updatedCommunications,
-        status: newStatus,
-        updatedAt: new Date(),
-        assignedTo: user.id
-      });
-
-      // Update local state
-      setLeads(prev => prev.map(lead => 
-        lead.id === selectedLead.id 
-          ? { ...lead, communications: updatedCommunications, status: newStatus, assignedTo: user.id }
-          : lead
-      ));
-
-      setShowCallModal(false);
-      setSelectedLead(null);
-    } catch (error) {
-      console.error('Error logging call:', error);
     }
   };
 
@@ -262,6 +236,58 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
             </div>
           </div>
         </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Leads to Call</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.leadsToCall}</p>
+              <p className="text-sm text-gray-500">{stats.followUps} follow-ups</p>
+            </div>
+            <div className="bg-orange-100 p-3 rounded-full">
+              <Phone className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border mb-8">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link
+            to="/calling"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-between group"
+          >
+            <div>
+              <h3 className="font-semibold text-lg mb-1">Start Calling</h3>
+              <p className="text-blue-100 text-sm">{stats.leadsToCall} leads ready</p>
+            </div>
+            <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+          </Link>
+          
+          <Link
+            to="/leads"
+            className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-between group"
+          >
+            <div>
+              <h3 className="font-semibold text-lg mb-1">Manage Leads</h3>
+              <p className="text-green-100 text-sm">View all leads</p>
+            </div>
+            <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+          </Link>
+          
+          <Link
+            to="/meetings"
+            className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-between group"
+          >
+            <div>
+              <h3 className="font-semibold text-lg mb-1">My Meetings</h3>
+              <p className="text-purple-100 text-sm">Scheduled appointments</p>
+            </div>
+            <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
       </div>
 
       {/* Lead Filter */}
@@ -294,7 +320,16 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
       {/* Priority Leads Section */}
       {priorityLeads.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Priority Leads</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Priority Leads</h2>
+            <Link
+              to="/calling"
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+            >
+              <span>Start systematic calling</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {priorityLeads.slice(0, 6).map((lead) => {
               const lastComm = getLastCommunication(lead);
@@ -342,7 +377,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
 
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => handleCall(lead)}
+                      onClick={() => window.open(`tel:${lead.phone}`, '_self')}
                       className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
                     >
                       <Phone className="w-3 h-3" />
@@ -419,7 +454,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
 
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleCall(lead)}
+                    onClick={() => window.open(`tel:${lead.phone}`, '_self')}
                     className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
                   >
                     <Phone className="w-3 h-3" />
@@ -445,18 +480,6 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
           })}
         </div>
       </div>
-
-      {/* Call Log Modal */}
-      {showCallModal && selectedLead && (
-        <CallLogModal
-          lead={selectedLead}
-          onClose={() => {
-            setShowCallModal(false);
-            setSelectedLead(null);
-          }}
-          onSave={handleCallLog}
-        />
-      )}
     </div>
   );
 };
