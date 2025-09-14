@@ -110,6 +110,10 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
           console.log('Firebase user cleaned up successfully');
         } catch (deleteError) {
           console.error('Failed to clean up Firebase user:', deleteError);
+          // Critical failure - user account is in inconsistent state
+          setError('Critical error: Account creation failed and cleanup unsuccessful. Please contact support.');
+          setLoading(false);
+          return;
         }
       }
       
