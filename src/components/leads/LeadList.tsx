@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User, Lead } from '../../types';
-import { Plus, Search, Filter, Phone, Mail, MapPin, Calendar } from 'lucide-react';
+import { Plus, Search, Filter, Phone, Mail, MapPin, Calendar, Upload } from 'lucide-react';
+import CreateLeadModal from './CreateLeadModal';
+import ExcelUploadModal from './ExcelUploadModal';
 
 interface LeadListProps {
   user: User;
@@ -13,6 +15,8 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -96,10 +100,22 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
           <p className="text-gray-600">Manage and track your leads</p>
         </div>
         {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'call_center') && (
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-            <Plus className="w-5 h-5" />
-            <span>Add Lead</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+            >
+              <Upload className="w-5 h-5" />
+              <span>Upload Excel</span>
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Lead</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -216,6 +232,28 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <CreateLeadModal
+          user={user}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            fetchLeads();
+          }}
+        />
+      )}
+
+      {showUploadModal && (
+        <ExcelUploadModal
+          user={user}
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={() => {
+            setShowUploadModal(false);
+            fetchLeads();
+          }}
+        />
+      )}
     </div>
   );
 };
