@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
-import Login from './components/auth/Login';
+import AuthContainer from './components/auth/AuthContainer';
 import Layout from './components/layout/Layout';
 import AdminDashboard from './components/dashboard/AdminDashboard';
 import SupervisorDashboard from './components/dashboard/SupervisorDashboard';
@@ -26,7 +26,7 @@ function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return <AuthContainer />;
   }
 
   const getDashboardComponent = () => {

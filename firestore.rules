@@ -59,8 +59,11 @@ service cloud.firestore {
          sameOrganization(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        isAdmin()
+        request.auth.uid == userId || 
+        isAdmin() ||
+        // Allow user creation during signup (when user document doesn't exist yet)
+        (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         request.auth.uid == userId)
       );
       allow update: if isAuthenticated() && (
         request.auth.uid == userId ||
