@@ -9,7 +9,7 @@ service cloud.firestore {
     
     // Helper function to get user's organization ID
     function getUserOrg() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId : null;
     }
     
@@ -44,7 +44,7 @@ service cloud.firestore {
     // Users can only read their own organization
     match /organizations/{orgId} {
       allow read: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
-      allow create: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
       allow delete: if isAuthenticated() && isAdmin();
     }
@@ -55,24 +55,23 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId || 
         isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(userId)) && 
+        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(userId)) && 
          sameOrganization(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
         request.auth.uid == userId || 
-        isAdmin() ||
-        // Allow user creation during signup (when user document doesn't exist yet)
-        (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         request.auth.uid == userId)
+        isAdmin()
       );
       allow update: if isAuthenticated() && (
         request.auth.uid == userId ||
         isAdmin() ||
-        (sameOrganization(resource.data.organizationId) && isAdminOrSupervisor())
+        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         sameOrganization(resource.data.organizationId) && isAdminOrSupervisor())
       );
       allow delete: if isAuthenticated() && (
         isAdmin() ||
-        (sameOrganization(resource.data.organizationId) && isAdmin())
+        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         sameOrganization(resource.data.organizationId) && isAdmin())
       );
     }
     

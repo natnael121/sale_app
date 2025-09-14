@@ -46,15 +46,21 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
     }
 
     try {
+      console.log('Creating user account for:', formData.email);
+      
       // Create user account
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
         formData.email, 
         formData.password
       );
+      
+      console.log('User account created:', userCredential.user.uid);
 
       // Create organization first
       const orgRef = doc(db, 'organizations', `org_${userCredential.user.uid}`);
+      console.log('Creating organization:', orgRef.id);
+      
       await setDoc(orgRef, {
         name: formData.organizationName,
         createdAt: new Date(),
@@ -71,8 +77,11 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
           }
         }
       });
+      
+      console.log('Organization created successfully');
 
       // Create user document with admin role
+      console.log('Creating user document');
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email: formData.email,
         name: formData.name,
@@ -81,10 +90,38 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
         createdAt: new Date(),
         isActive: true
       });
+      
+      console.log('User document created successfully');
 
     } catch (error: any) {
       console.error('Signup error:', error);
-      setError(error.message || 'Failed to create account');
+      
+      let errorMessage = 'Failed to create account';
+      
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'An account with this email already exists';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your connection';
+          break;
+        case 'permission-denied':
+          errorMessage = 'Permission denied. Please check Firestore security rules';
+          break;
+        default:
+          errorMessage = error.message || 'Failed to create account';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
