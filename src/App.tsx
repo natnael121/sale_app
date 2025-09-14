@@ -9,6 +9,7 @@ import CallCenterDashboard from './components/dashboard/CallCenterDashboard';
 import FieldAgentDashboard from './components/dashboard/FieldAgentDashboard';
 import LeadList from './components/leads/LeadList';
 import MeetingList from './components/meetings/MeetingList';
+import OrganizationList from './components/organizations/OrganizationList';
 
 function App() {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout user={user} />}>
           <Route index element={getDashboardComponent()} />
+          <Route path="organizations" element={<OrganizationList user={user} />} />
           <Route path="leads" element={<LeadList user={user} />} />
           <Route path="meetings" element={<MeetingList user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />

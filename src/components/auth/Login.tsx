@@ -79,30 +79,6 @@ const Login = () => {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="text-sm text-gray-600 space-y-2">
-            <p><strong>Demo Accounts:</strong></p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <p className="font-medium">Admin:</p>
-                <p>admin@demo.com / admin123</p>
-              </div>
-              <div>
-                <p className="font-medium">Supervisor:</p>
-                <p>supervisor@demo.com / super123</p>
-              </div>
-              <div>
-                <p className="font-medium">Call Center:</p>
-                <p>agent@demo.com / agent123</p>
-              </div>
-              <div>
-                <p className="font-medium">Field Agent:</p>
-                <p>field@demo.com / field123</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { 
   LayoutDashboard, Users, Phone, MapPin, BarChart3, 
-  DollarSign, Settings, LogOut, UserCheck, Calendar 
+  DollarSign, Settings, LogOut, UserCheck, Calendar, Building2 
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
       case 'admin':
         return [
           ...baseItems,
-          { to: '/organizations', icon: Settings, label: 'Organizations' },
+          { to: '/organizations', icon: Building2, label: 'Organizations' },
           { to: '/users', icon: Users, label: 'Users' },
           { to: '/leads', icon: UserCheck, label: 'Leads' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },

@@ -40,27 +40,37 @@ service cloud.firestore {
       return hasRole('admin') || hasRole('supervisor') || hasRole('call_center');
     }
     
-    // Organizations - Only admins can create/manage organizations
+    // Organizations - Admins can create/read/update/delete organizations
+    // Users can only read their own organization
     match /organizations/{orgId} {
-      allow read: if sameOrganization(orgId);
+      allow read: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
       allow create: if isAuthenticated() && isAdmin();
-      allow update: if sameOrganization(orgId) && isAdmin();
-      allow delete: if sameOrganization(orgId) && isAdmin();
+      allow update: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
+      allow delete: if isAuthenticated() && isAdmin();
     }
     
     // Users - Allow creation by the user themselves, read/write with proper permissions
+    // Admins can create users for any organization, users can only create themselves
     match /users/{userId} {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId || 
+        isAdmin() ||
         (exists(/databases/$(database)/documents/users/$(userId)) && 
          sameOrganization(resource.data.organizationId))
       );
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
       allow update: if isAuthenticated() && (
         request.auth.uid == userId ||
+        isAdmin() ||
+        (sameOrganization(resource.data.organizationId) && isAdminOrSupervisor())
+      );
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
         (sameOrganization(resource.data.organizationId) && isAdmin())
       );
-      allow delete: if sameOrganization(resource.data.organizationId) && isAdmin();
     }
     
     // Leads - Organization-scoped access with role-based permissions
