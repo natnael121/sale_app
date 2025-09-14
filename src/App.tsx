@@ -10,6 +10,9 @@ import FieldAgentDashboard from './components/dashboard/FieldAgentDashboard';
 import LeadList from './components/leads/LeadList';
 import MeetingList from './components/meetings/MeetingList';
 import OrganizationList from './components/organizations/OrganizationList';
+import UserManagement from './components/users/UserManagement';
+import Analytics from './components/analytics/Analytics';
+import CommissionManagement from './components/commissions/CommissionManagement';
 
 function App() {
   const { user, loading } = useAuth();
@@ -45,7 +48,10 @@ function App() {
         <Route path="/" element={<Layout user={user} />}>
           <Route index element={getDashboardComponent()} />
           <Route path="organizations" element={<OrganizationList user={user} />} />
+          <Route path="users" element={<UserManagement user={user} />} />
           <Route path="leads" element={<LeadList user={user} />} />
+          <Route path="analytics" element={<Analytics user={user} />} />
+          <Route path="commissions" element={<CommissionManagement user={user} />} />
           <Route path="meetings" element={<MeetingList user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

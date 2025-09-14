@@ -30,7 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         return [
           ...baseItems,
           { to: '/organizations', icon: Building2, label: 'Organizations' },
-          { to: '/users', icon: Users, label: 'Users' },
+          { to: '/users', icon: Users, label: 'Team Management' },
           { to: '/leads', icon: UserCheck, label: 'Leads' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
           { to: '/commissions', icon: DollarSign, label: 'Commissions' },
