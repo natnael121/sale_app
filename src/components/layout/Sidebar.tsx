@@ -48,9 +48,8 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         return [
           ...baseItems,
           { to: '/leads', icon: UserCheck, label: 'Leads' },
-          { to: '/calls', icon: Phone, label: 'Calls' },
           { to: '/meetings', icon: Calendar, label: 'Meetings' },
-          { to: '/performance', icon: BarChart3, label: 'Performance' },
+          { to: '/analytics', icon: BarChart3, label: 'Analytics' },
         ];
       case 'field_agent':
         return [
