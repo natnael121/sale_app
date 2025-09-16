@@ -38,6 +38,7 @@ const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave, avai
       alert('Please select a callback date');
       return;
     }
+
     const outcome: CallOutcome = {
       picked,
       result: result as CallOutcome['result'],

@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { User, Meeting } from '../../types';
-import { Calendar, MapPin, Clock, CheckCircle, Camera, Navigation } from 'lucide-react';
+import { Calendar, MapPin, Clock, CheckCircle, Camera, Navigation, Plus } from 'lucide-react';
+import CreateMeetingModal from './CreateMeetingModal';
 
 interface MeetingListProps {
   user: User;
 }
 
 const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
+  const [meetings] = useState<Meeting[]>([
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
   const [meetings] = useState<Meeting[]>([
     {
       id: '1',
@@ -75,8 +79,19 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Meetings</h1>
-        <p className="text-gray-600">Manage your scheduled field visits</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">Meetings</h1>
+            <p className="text-gray-600">Manage your scheduled field visits</p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Schedule Meeting</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-6">
@@ -177,6 +192,17 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
           </div>
         ))}
       </div>
+
+      {showCreateModal && (
+        <CreateMeetingModal
+          user={user}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            // Refresh meetings list here
+          }}
+        />
+      )}
     </div>
   );
 };

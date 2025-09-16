@@ -32,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
           { to: '/organizations', icon: Building2, label: 'Organizations' },
           { to: '/users', icon: Users, label: 'Team Management' },
           { to: '/leads', icon: UserCheck, label: 'Leads' },
+          { to: '/meetings', icon: Calendar, label: 'Meetings' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
           { to: '/commissions', icon: DollarSign, label: 'Commissions' },
         ];
@@ -48,7 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
         return [
           ...baseItems,
           { to: '/calling', icon: Phone, label: 'Calling' },
-          { to: '/leads', icon: UserCheck, label: 'Leads' },
+          { to: '/my-leads', icon: UserCheck, label: 'My Leads' },
           { to: '/meetings', icon: Calendar, label: 'Meetings' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
         ];
@@ -57,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
           ...baseItems,
           { to: '/meetings', icon: Calendar, label: 'Meetings' },
           { to: '/field-visits', icon: MapPin, label: 'Field Visits' },
-          { to: '/leads', icon: UserCheck, label: 'My Leads' },
+          { to: '/my-leads', icon: UserCheck, label: 'My Leads' },
           { to: '/performance', icon: BarChart3, label: 'Performance' },
         ];
       default:

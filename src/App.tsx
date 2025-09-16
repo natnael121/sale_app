@@ -14,6 +14,7 @@ import UserManagement from './components/users/UserManagement';
 import Analytics from './components/analytics/Analytics';
 import CommissionManagement from './components/commissions/CommissionManagement';
 import CallingInterface from './components/calls/CallingInterface';
+import MyLeads from './components/leads/MyLeads';
 
 function App() {
   const { user, loading } = useAuth();
@@ -55,6 +56,7 @@ function App() {
           <Route path="commissions" element={<CommissionManagement user={user} />} />
           <Route path="meetings" element={<MeetingList user={user} />} />
           <Route path="calling" element={<CallingInterface user={user} />} />
+          <Route path="my-leads" element={<MyLeads user={user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
