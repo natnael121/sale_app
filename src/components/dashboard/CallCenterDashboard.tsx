@@ -50,7 +50,8 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
       today.setHours(0, 0, 0, 0);
       
       const callableLeads = leadsData.filter(lead => {
-        if (lead.status === 'converted' || lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
+        if (lead.status === 'converted' || lead.status === 'closed' || 
+            lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
           return false;
         }
         
@@ -58,6 +59,13 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
         if (lastComm) {
           const lastCommDate = new Date(lastComm.createdAt);
           const daysSinceLastComm = Math.floor((Date.now() - lastCommDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Don't show leads marked as not interested or wrong number
+          if (lastComm.outcome && 
+              (lastComm.outcome.result === 'not_interested' || 
+               lastComm.outcome.result === 'wrong_number')) {
+            return false;
+          }
           
           if (lastComm.outcome && !lastComm.outcome.picked && 
               (lastComm.outcome.result === 'switched_off' || lastComm.outcome.result === 'no_answer') &&

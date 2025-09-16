@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User, Lead, Communication, CallOutcome } from '../../types';
 import { Phone, PhoneCall, Clock, User as UserIcon, MapPin, Mail, Play, Pause, SkipForward, CheckCircle, XCircle, Calendar, AlertCircle } from 'lucide-react';
@@ -11,6 +11,7 @@ interface CallingInterfaceProps {
 
 const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0);
   const [isCallActive, setIsCallActive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
 
   useEffect(() => {
     fetchCallableLeads();
+    fetchAvailableUsers();
     const interval = setInterval(() => {
       if (callStartTime) {
         setCallDuration(Math.floor((Date.now() - callStartTime.getTime()) / 1000));
@@ -34,6 +36,24 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     return () => clearInterval(interval);
   }, [user.organizationId, callStartTime]);
 
+  const fetchAvailableUsers = async () => {
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('organizationId', '==', user.organizationId),
+        where('isActive', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      const users = snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+        role: doc.data().role
+      }));
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error('Error fetching available users:', error);
+    }
+  };
   const fetchCallableLeads = async () => {
     try {
       const today = new Date();
@@ -55,8 +75,9 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
 
       // Filter leads based on calling rules
       const callableLeads = allLeads.filter(lead => {
-        // Don't show leads that are already converted or have meetings scheduled
-        if (lead.status === 'converted' || lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
+        // Don't show leads that are already converted, closed, or have meetings scheduled
+        if (lead.status === 'converted' || lead.status === 'closed' || 
+            lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
           return false;
         }
 
@@ -66,13 +87,20 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           const lastCommDate = new Date(lastComm.createdAt);
           const daysSinceLastComm = Math.floor((Date.now() - lastCommDate.getTime()) / (1000 * 60 * 60 * 24));
           
-          // If last call was busy/switched off, wait 1 day
+          // If last call was busy/switched off/no answer, wait 1 day
           if (lastComm.outcome && !lastComm.outcome.picked && 
-              (lastComm.outcome.result === 'switched_off' || lastComm.outcome.result === 'no_answer') &&
+              (lastComm.outcome.result === 'switched_off' || 
+               lastComm.outcome.result === 'no_answer') &&
               daysSinceLastComm < 1) {
             return false;
           }
 
+          // Don't show leads marked as not interested or wrong number
+          if (lastComm.outcome && 
+              (lastComm.outcome.result === 'not_interested' || 
+               lastComm.outcome.result === 'wrong_number')) {
+            return false;
+          }
           // If there's a follow-up scheduled for today or earlier, include it
           if (lastComm.outcome?.nextActionDate) {
             const nextActionDate = new Date(lastComm.outcome.nextActionDate);
@@ -183,6 +211,9 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     outcome: CallOutcome;
     duration?: number;
     notes?: string;
+    meetingDate?: Date;
+    assignedTo?: string;
+    callbackDate?: Date;
   }) => {
     const currentLead = leads[currentLeadIndex];
     if (!currentLead) return;
@@ -217,16 +248,35 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
             assignedTo = user.id;
             break;
           case 'not_interested':
-            newStatus = 'closed';
+            newStatus = 'closed'; // This will exclude it from future calls
             break;
           default:
             newStatus = 'contacted';
             assignedTo = user.id;
         }
       } else {
-        newStatus = 'contacted';
+        // For not picked calls, keep current status unless it's wrong number
+        if (callData.outcome.result === 'wrong_number') {
+          newStatus = 'closed'; // This will exclude it from future calls
+        } else {
+          newStatus = 'contacted';
+        }
       }
 
+      // Create meeting if meeting was set up
+      if (callData.outcome.result === 'meeting_setup' && callData.meetingDate && callData.assignedTo) {
+        await addDoc(collection(db, 'meetings'), {
+          leadId: currentLead.id,
+          organizationId: user.organizationId,
+          scheduledBy: user.id,
+          assignedTo: callData.assignedTo,
+          scheduledAt: callData.meetingDate,
+          status: 'scheduled',
+          location: currentLead.address || 'To be determined',
+          notes: `Meeting scheduled via call center. Lead: ${currentLead.name}, Phone: ${currentLead.phone}`,
+          createdAt: new Date()
+        });
+      }
       await updateDoc(doc(db, 'leads', currentLead.id), {
         communications: updatedCommunications,
         status: newStatus,
@@ -256,6 +306,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
 
     } catch (error) {
       console.error('Error logging call:', error);
+      alert('Error saving call log. Please try again.');
     }
   };
 
@@ -516,6 +567,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           lead={currentLead}
           onClose={() => setShowCallModal(false)}
           onSave={handleCallLog}
+          availableUsers={availableUsers}
         />
       )}
     </div>

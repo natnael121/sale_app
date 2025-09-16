@@ -84,6 +84,7 @@ export interface Meeting {
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   location: string;
   notes?: string;
+  createdAt: Date;
   checkIn?: MeetingCheckIn;
   result?: MeetingResult;
 }

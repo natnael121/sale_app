@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lead, CallOutcome } from '../../types';
-import { Phone, X, Clock, CheckCircle, XCircle, Calendar, PhoneOff } from 'lucide-react';
+import { Phone, X, Clock, CheckCircle, XCircle, Calendar, PhoneOff, User, Users } from 'lucide-react';
 
 interface CallLogModalProps {
   lead: Lead;
@@ -9,31 +9,78 @@ interface CallLogModalProps {
     outcome: CallOutcome;
     duration?: number;
     notes?: string;
+    meetingDate?: Date;
+    assignedTo?: string;
+    callbackDate?: Date;
   }) => void;
+  availableUsers?: { id: string; name: string; role: string }[];
 }
 
-const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave }) => {
+const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave, availableUsers = [] }) => {
   const [picked, setPicked] = useState<boolean | null>(null);
   const [result, setResult] = useState<CallOutcome['result'] | ''>('');
   const [duration, setDuration] = useState<number>(0);
   const [notes, setNotes] = useState('');
-  const [nextActionDate, setNextActionDate] = useState('');
-  const [nextAction, setNextAction] = useState('');
+  const [callbackDate, setCallbackDate] = useState('');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
 
   const handleSave = () => {
     if (picked === null || !result) return;
 
+    // Validate required fields based on result
+    if (result === 'meeting_setup' && (!meetingDate || !assignedTo)) {
+      alert('Please select meeting date and assign a user for meeting setup');
+      return;
+    }
+    
+    if ((result === 'interested' || result === 'call_later') && !callbackDate) {
+      alert('Please select a callback date');
+      return;
+    }
     const outcome: CallOutcome = {
       picked,
       result: result as CallOutcome['result'],
-      nextAction: nextAction || undefined,
-      nextActionDate: nextActionDate ? new Date(nextActionDate) : undefined
+      nextAction: getNextActionText(result as CallOutcome['result']),
+      nextActionDate: getNextActionDate()
     };
 
+    function getNextActionText(result: CallOutcome['result']): string | undefined {
+      switch (result) {
+        case 'interested': return 'Follow up call - lead showed interest';
+        case 'call_later': return 'Callback as requested by lead';
+        case 'meeting_setup': return 'Meeting scheduled';
+        case 'switched_off': return 'Retry call - phone was switched off';
+        case 'no_answer': return 'Retry call - no answer';
+        default: return undefined;
+      }
+    }
+
+    function getNextActionDate(): Date | undefined {
+      switch (result) {
+        case 'interested':
+        case 'call_later':
+          return callbackDate ? new Date(callbackDate) : undefined;
+        case 'meeting_setup':
+          return meetingDate ? new Date(meetingDate) : undefined;
+        case 'switched_off':
+        case 'no_answer':
+          // Next day by default
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(9, 0, 0, 0); // 9 AM next day
+          return tomorrow;
+        default:
+          return undefined;
+      }
+    }
     onSave({
       outcome,
       duration: duration > 0 ? duration : undefined,
-      notes: notes || undefined
+      notes: notes || undefined,
+      meetingDate: meetingDate ? new Date(meetingDate) : undefined,
+      assignedTo: assignedTo || undefined,
+      callbackDate: callbackDate ? new Date(callbackDate) : undefined
     });
     
     // Reset form
@@ -41,8 +88,9 @@ const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave }) =>
     setResult('');
     setDuration(0);
     setNotes('');
-    setNextActionDate('');
-    setNextAction('');
+    setCallbackDate('');
+    setMeetingDate('');
+    setAssignedTo('');
   };
 
   const pickedOptions = [
@@ -163,32 +211,96 @@ const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave }) =>
           )}
 
           {/* Next Action */}
-          {(result === 'call_later' || result === 'interested') && (
+          {(result === 'interested' || result === 'call_later') && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Next Action
-                </label>
-                <input
-                  type="text"
-                  value={nextAction}
-                  onChange={(e) => setNextAction(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="What should be done next?"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Next Action Date
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>Callback Date & Time *</span>
                 </label>
                 <input
                   type="datetime-local"
-                  value={nextActionDate}
-                  onChange={(e) => setNextActionDate(e.target.value)}
+                  value={callbackDate}
+                  onChange={(e) => setCallbackDate(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
                 />
+                <p className="text-sm text-gray-500 mt-1">
+                  {result === 'interested' ? 'Schedule follow-up call for interested lead' : 'Schedule callback as requested'}
+                </p>
               </div>
             </>
+          )}
+
+          {/* Meeting Setup */}
+          {result === 'meeting_setup' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>Meeting Date & Time *</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={meetingDate}
+                  onChange={(e) => setMeetingDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center space-x-2">
+                  <User className="w-4 h-4" />
+                  <span>Assign Meeting To *</span>
+                </label>
+                <select
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  required
+                >
+                  <option value="">Select team member...</option>
+                  {availableUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.role.replace('_', ' ')})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-gray-500 mt-1">
+                  Choose who will handle this meeting
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Automatic Next Day Info */}
+          {(result === 'switched_off' || result === 'no_answer') && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">Automatic Retry</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                This lead will automatically appear in tomorrow's call list at 9:00 AM
+              </p>
+            </div>
+          )}
+
+          {/* Removal Warning */}
+          {(result === 'not_interested' || result === 'wrong_number') && (
+            <div className="bg-red-50 p-4 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <XCircle className="w-4 h-4 text-red-600" />
+                <span className="text-sm font-medium text-red-800">Lead Removal</span>
+              </div>
+              <p className="text-sm text-red-700">
+                {result === 'not_interested' 
+                  ? 'This lead will be moved to the "Not Interested" list and removed from calling queue'
+                  : 'This lead will be removed from the calling queue due to wrong number'
+                }
+              </p>
+            </div>
           )}
 
           {/* Notes */}
