@@ -43,7 +43,11 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
         id: doc.id,
         ...doc.data(),
         scheduledAt: doc.data().scheduledAt?.toDate(),
-        createdAt: doc.data().createdAt?.toDate()
+        createdAt: doc.data().createdAt?.toDate(),
+        checkIn: doc.data().checkIn ? {
+          ...doc.data().checkIn,
+          timestamp: doc.data().checkIn.timestamp?.toDate()
+        } : undefined
       } as Meeting));
 
       setMeetings(meetingsData);

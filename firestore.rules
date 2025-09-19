@@ -55,7 +55,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId || 
         isAdmin() ||
-        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(userId)) && 
+        (exists(/databases/$(database)/documents/users/$(userId)) && 
          sameOrganization(resource.data.organizationId))
       );
       allow create: if isAuthenticated() && (
