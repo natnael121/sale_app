@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { User, Meeting } from '../../types';
-import { Calendar, MapPin, Clock, CheckCircle, Camera, Navigation, User as UserIcon, Plus, Search, Filter } from 'lucide-react';
+import { User, Meeting, Lead } from '../../types';
+import { Calendar, MapPin, Clock, CheckCircle, Camera, Navigation, User as UserIcon, Plus, Search, Filter, Eye, Phone, Mail, MessageSquare } from 'lucide-react';
 import CreateMeetingModal from './CreateMeetingModal';
+import MeetingDetailModal from './MeetingDetailModal';
 
 interface MeetingListProps {
   user: User;
@@ -15,6 +16,8 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
 
   useEffect(() => {
     fetchMeetings();
@@ -115,6 +118,11 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
     } catch (error) {
       console.error('Error completing meeting:', error);
     }
+  };
+
+  const handleViewDetails = (meeting: Meeting) => {
+    setSelectedMeeting(meeting);
+    setShowDetailModal(true);
   };
 
   const filteredMeetings = meetings.filter(meeting => {
@@ -308,6 +316,14 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
                     View Results
                   </button>
                 )}
+
+                <button
+                  onClick={() => handleViewDetails(meeting)}
+                  className="bg-purple-600 text-white px-2 py-2 rounded text-xs hover:bg-purple-700 transition-colors"
+                  title="View Details"
+                >
+                  <Eye className="w-3 h-3" />
+                </button>
               </div>
             </div>
           ))}
@@ -322,6 +338,18 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
           onSuccess={() => {
             setShowCreateModal(false);
             fetchMeetings();
+          }}
+        />
+      )}
+
+      {/* Meeting Detail Modal */}
+      {showDetailModal && selectedMeeting && (
+        <MeetingDetailModal
+          meeting={selectedMeeting}
+          user={user}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedMeeting(null);
           }}
         />
       )}
