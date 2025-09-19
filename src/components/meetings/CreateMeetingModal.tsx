@@ -40,17 +40,57 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
 
   const fetchAvailableUsers = async () => {
     try {
-      const q = query(
-        collection(db, 'users'),
-        where('organizationId', '==', user.organizationId),
-        where('isActive', '==', true)
-      );
+      let q;
+      
+      if (user.role === 'admin') {
+        // Admins can see all active users
+        q = query(
+          collection(db, 'users'),
+          where('organizationId', '==', user.organizationId),
+          where('isActive', '==', true)
+        );
+      } else if (user.role === 'supervisor') {
+        // Supervisors can see call center agents and field agents
+        q = query(
+          collection(db, 'users'),
+          where('organizationId', '==', user.organizationId),
+          where('isActive', '==', true)
+        );
+      } else {
+        // Call center and field agents can only see field agents and themselves
+        q = query(
+          collection(db, 'users'),
+          where('organizationId', '==', user.organizationId),
+          where('isActive', '==', true)
+        );
+      }
+      
       const snapshot = await getDocs(q);
-      const users = snapshot.docs.map(doc => ({
+      let users = snapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
         role: doc.data().role
       }));
+      
+      // Apply role-based filtering after fetching
+      if (user.role === 'supervisor') {
+        // Supervisors can assign to call center agents, field agents, and other supervisors
+        users = users.filter(u => 
+          u.role === 'call_center' || 
+          u.role === 'field_agent' || 
+          u.role === 'supervisor'
+        );
+      } else if (user.role === 'call_center') {
+        // Call center agents can assign to field agents and themselves
+        users = users.filter(u => 
+          u.role === 'field_agent' || 
+          u.id === user.id
+        );
+      } else if (user.role === 'field_agent') {
+        // Field agents can only assign to themselves
+        users = users.filter(u => u.id === user.id);
+      }
+      
       setAvailableUsers(users);
     } catch (error) {
       console.error('Error fetching available users:', error);
@@ -176,6 +216,7 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
                 {availableUsers.map((userOption) => (
                   <option key={userOption.id} value={userOption.id}>
                     {userOption.name} ({userOption.role.replace('_', ' ')})
+                    {userOption.id === user.id ? ' (You)' : ''}
                   </option>
                 ))}
               </select>
