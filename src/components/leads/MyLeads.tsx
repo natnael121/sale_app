@@ -28,14 +28,12 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
       let q;
       
       if (user.role === 'call_center') {
-        // Call center agents see leads they created or are assigned to
         q = query(
           collection(db, 'leads'),
           where('organizationId', '==', user.organizationId),
           orderBy('createdAt', 'desc')
         );
       } else if (user.role === 'field_agent') {
-        // Field agents see only leads assigned to them
         q = query(
           collection(db, 'leads'),
           where('organizationId', '==', user.organizationId),
@@ -43,7 +41,6 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
           orderBy('createdAt', 'desc')
         );
       } else {
-        // Other roles see all leads
         q = query(
           collection(db, 'leads'),
           where('organizationId', '==', user.organizationId),
@@ -59,7 +56,6 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
         updatedAt: doc.data().updatedAt?.toDate()
       } as Lead));
 
-      // Filter for call center agents to show only their leads or unassigned ones
       if (user.role === 'call_center') {
         const filteredLeads = leadsData.filter(lead => 
           lead.createdBy === user.id || 
@@ -91,17 +87,17 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
   };
 
   const handleCall = (lead: Lead) => {
-    window.open(`tel:${lead.phone}`, '_self');
+    const phone = lead.managerPhone || lead.companyPhone;
+    if (phone) window.open(`tel:${phone}`, '_self');
   };
 
   const handleSMS = (lead: Lead) => {
-    window.open(`sms:${lead.phone}`, '_blank');
+    const phone = lead.managerPhone || lead.companyPhone;
+    if (phone) window.open(`sms:${phone}`, '_blank');
   };
 
   const handleEmail = (lead: Lead) => {
-    if (lead.email) {
-      window.open(`mailto:${lead.email}`, '_blank');
-    }
+    if (lead.email) window.open(`mailto:${lead.email}`, '_blank');
   };
 
   const handleScheduleMeeting = (lead: Lead) => {
@@ -115,9 +111,14 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
   };
 
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lead.phone.includes(searchTerm) ||
-                         (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch =
+      lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.managerName && lead.managerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.managerPhone && lead.managerPhone.includes(searchTerm)) ||
+      (lead.companyPhone && lead.companyPhone.includes(searchTerm)) ||
+      (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.sector && lead.sector.toLowerCase().includes(searchTerm.toLowerCase()));
+
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -141,14 +142,11 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            {user.role === 'field_agent' ? 'My Leads' : 'My Leads'}
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-800">My Leads</h1>
           <p className="text-gray-600">
             {user.role === 'field_agent' 
               ? 'Leads assigned to you for field visits' 
-              : 'Leads you\'ve created or are working on'
-            }
+              : 'Leads you\'ve created or are working on'}
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -170,7 +168,7 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search leads by name, phone, or email..."
+            placeholder="Search by company, manager, phone, email, or sector..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -205,8 +203,7 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
           <p className="text-gray-500 mb-6">
             {user.role === 'field_agent' 
               ? 'No leads have been assigned to you yet'
-              : 'Start by adding your first lead'
-            }
+              : 'Start by adding your first lead'}
           </p>
           {user.role === 'call_center' && (
             <button
@@ -223,6 +220,7 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
             const lastComm = getLastCommunication(lead);
             return (
               <div key={lead.id} className="bg-white p-4 rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+                
                 {/* Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
@@ -230,7 +228,7 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
                       <UserIcon className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-800 text-sm truncate">{lead.name}</p>
+                      <p className="font-medium text-gray-800 text-sm truncate">{lead.companyName}</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
                         {lead.status.replace('_', ' ')}
                       </span>
@@ -240,10 +238,18 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
                 
                 {/* Contact Info */}
                 <div className="space-y-2 mb-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Phone className="w-3 h-3 mr-2 flex-shrink-0" />
-                    <span className="truncate">{lead.phone}</span>
-                  </div>
+                  {lead.managerName && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <UserIcon className="w-3 h-3 mr-2 flex-shrink-0" />
+                      <span className="truncate">{lead.managerName}</span>
+                    </div>
+                  )}
+                  {(lead.managerPhone || lead.companyPhone) && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Phone className="w-3 h-3 mr-2 flex-shrink-0" />
+                      <span className="truncate">{lead.managerPhone || lead.companyPhone}</span>
+                    </div>
+                  )}
                   {lead.email && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Mail className="w-3 h-3 mr-2 flex-shrink-0" />
@@ -255,6 +261,15 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
                       <MapPin className="w-3 h-3 mr-2 flex-shrink-0" />
                       <span className="truncate">{lead.address}</span>
                     </div>
+                  )}
+                  {lead.sector && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="font-semibold mr-1">Sector:</span>
+                      <span>{lead.sector}</span>
+                    </div>
+                  )}
+                  {lead.notes && (
+                    <div className="text-sm text-gray-500 truncate">{lead.notes}</div>
                   )}
                 </div>
 
