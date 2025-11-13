@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User } from '../../types';
-import { UserPlus, X, User as UserIcon, Phone, Mail, MapPin, Building2 } from 'lucide-react';
+import { UserPlus, X, Phone, Building2, FileText } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 interface CreateLeadModalProps {
@@ -12,10 +12,11 @@ interface CreateLeadModalProps {
 }
 
 interface LeadFormData {
-  name: string;
-  phone: string;
-  email?: string;
-  address?: string;
+  companyName: string;
+  managerName: string;
+  managerPhone: string;
+  companyPhone: string;
+  sector: string;
   source: string;
   notes?: string;
 }
@@ -67,7 +68,7 @@ const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ user, onClose, onSucc
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">Add New Lead</h2>
-              <p className="text-gray-600">Create a new lead record</p>
+              <p className="text-gray-600">Enter company and manager details</p>
             </div>
           </div>
           <button
@@ -85,106 +86,128 @@ const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ user, onClose, onSucc
             </div>
           )}
 
+          {/* 1. Company Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Full Name *
+              Company Name *
             </label>
             <div className="relative">
-              <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                {...register('name', { required: 'Name is required' })}
+                {...register('companyName', { required: 'Company name is required' })}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter full name"
+                placeholder="Enter company name"
               />
             </div>
-            {errors.name && (
-              <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
+            {errors.companyName && (
+              <p className="text-red-600 text-sm mt-1">{errors.companyName.message}</p>
             )}
           </div>
 
+          {/* 2. Manager Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Phone Number *
+              Manager Name *
+            </label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                {...register('managerName', { required: 'Manager name is required' })}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter manager name"
+              />
+            </div>
+            {errors.managerName && (
+              <p className="text-red-600 text-sm mt-1">{errors.managerName.message}</p>
+            )}
+          </div>
+
+          {/* 3. Manager Phone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Manager Phone Number *
             </label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="tel"
-                {...register('phone', { required: 'Phone number is required' })}
+                {...register('managerPhone', { required: 'Manager phone number is required' })}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter phone number"
+                placeholder="Enter manager phone number"
               />
             </div>
-            {errors.phone && (
-              <p className="text-red-600 text-sm mt-1">{errors.phone.message}</p>
+            {errors.managerPhone && (
+              <p className="text-red-600 text-sm mt-1">{errors.managerPhone.message}</p>
             )}
           </div>
 
+          {/* 4. Company Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
+              Company Phone Number
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
-                type="email"
-                {...register('email')}
+                type="tel"
+                {...register('companyPhone')}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter email address"
+                placeholder="Enter company phone number"
               />
             </div>
           </div>
 
+          {/* 5. Sector */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Address
+              Sector *
             </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                {...register('address')}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter address"
-              />
-            </div>
+            <input
+              type="text"
+              {...register('sector', { required: 'Sector is required' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter business sector (e.g., FMCG, Construction)"
+            />
+            {errors.sector && (
+              <p className="text-red-600 text-sm mt-1">{errors.sector.message}</p>
+            )}
           </div>
 
+          {/* 6. Source */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Lead Source *
             </label>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <select
-                {...register('source', { required: 'Lead source is required' })}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="">Select lead source</option>
-                <option value="website">Website</option>
-                <option value="referral">Referral</option>
-                <option value="social_media">Social Media</option>
-                <option value="cold_call">Cold Call</option>
-                <option value="advertisement">Advertisement</option>
-                <option value="trade_show">Trade Show</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            <select
+              {...register('source', { required: 'Lead source is required' })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="">Select source</option>
+              <option value="website">Website</option>
+              <option value="referral">Referral</option>
+              <option value="social_media">Social Media</option>
+              <option value="cold_call">Cold Call</option>
+              <option value="advertisement">Advertisement</option>
+              <option value="trade_show">Trade Show</option>
+              <option value="other">Other</option>
+            </select>
             {errors.source && (
               <p className="text-red-600 text-sm mt-1">{errors.source.message}</p>
             )}
           </div>
 
+          {/* 7. Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Initial Notes
+              Notes
             </label>
             <textarea
               {...register('notes')}
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Add any initial notes about this lead..."
+              placeholder="Add any notes about this lead..."
             />
           </div>
 
