@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User } from '../../types';
 import { Upload, X, FileSpreadsheet, Download, AlertCircle, CheckCircle } from 'lucide-react';
@@ -12,10 +12,11 @@ interface ExcelUploadModalProps {
 }
 
 interface LeadData {
-  name: string;
-  phone: string;
-  email?: string;
-  address?: string;
+  companyName: string;
+  managerName: string;
+  managerPhone: string;
+  companyPhone: string;
+  sector: string;
   source: string;
   notes?: string;
 }
@@ -42,32 +43,25 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, {
-          type: 'array',
-          cellText: false,
-          cellDates: true,
-          raw: false
-        });
+        const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-          header: 1,
-          raw: false,
-          defval: '',
-          blankrows: false
-        }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
         if (jsonData.length < 2) {
           setError('Excel file must contain at least a header row and one data row');
           return;
         }
 
-        const headers = jsonData[0].map((h: any) => {
-          if (h === null || h === undefined) return '';
-          return String(h).toLowerCase().trim();
-        });
-
-        const requiredColumns = ['name', 'phone'];
+        const headers = jsonData[0].map((h: string) => h?.toLowerCase().trim());
+        const requiredColumns = [
+          'company name',
+          'manager name',
+          'manager phone',
+          'company phone',
+          'sector',
+          'source'
+        ];
         const missingColumns = requiredColumns.filter(col => !headers.includes(col));
 
         if (missingColumns.length > 0) {
@@ -80,47 +74,23 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
           const row = jsonData[i];
           if (!row || row.length === 0) continue;
 
-          const nameIndex = headers.indexOf('name');
-          const phoneIndex = headers.indexOf('phone');
-          const emailIndex = headers.indexOf('email');
-          const addressIndex = headers.indexOf('address');
-          const sourceIndex = headers.indexOf('source');
-          const notesIndex = headers.indexOf('notes');
-
-          const getName = (val: any): string => {
-            if (val === null || val === undefined || val === '') return '';
-            return String(val).trim();
-          };
-
-          const getPhone = (val: any): string => {
-            if (val === null || val === undefined || val === '') return '';
-            return String(val).trim();
-          };
-
-          const getOptionalField = (val: any): string => {
-            if (val === null || val === undefined || val === '') return '';
-            return String(val).trim();
-          };
-
-          const name = getName(row[nameIndex]);
-          const phone = getPhone(row[phoneIndex]);
-
-          if (!name || !phone) continue;
-
           const lead: LeadData = {
-            name,
-            phone,
-            email: emailIndex >= 0 ? getOptionalField(row[emailIndex]) : '',
-            address: addressIndex >= 0 ? getOptionalField(row[addressIndex]) : '',
-            source: sourceIndex >= 0 && getOptionalField(row[sourceIndex]) ? getOptionalField(row[sourceIndex]) : 'excel_import',
-            notes: notesIndex >= 0 ? getOptionalField(row[notesIndex]) : ''
+            companyName: row[headers.indexOf('company name')] || '',
+            managerName: row[headers.indexOf('manager name')] || '',
+            managerPhone: row[headers.indexOf('manager phone')] || '',
+            companyPhone: row[headers.indexOf('company phone')] || '',
+            sector: row[headers.indexOf('sector')] || '',
+            source: row[headers.indexOf('source')] || 'excel_import',
+            notes: row[headers.indexOf('notes')] || ''
           };
 
-          leads.push(lead);
+          if (lead.companyName && lead.managerName && lead.managerPhone) {
+            leads.push(lead);
+          }
         }
 
         if (leads.length === 0) {
-          setError('No valid leads found in the Excel file. Make sure name and phone columns are filled.');
+          setError('No valid leads found in the Excel file');
           return;
         }
 
@@ -142,38 +112,36 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
     setError('');
 
     try {
-      const leadsCollection = collection(db, 'leads');
+      const batch = writeBatch(db);
 
-      const uploadPromises = preview.map((lead) => {
-        return addDoc(leadsCollection, {
-          name: lead.name,
-          phone: lead.phone,
-          email: lead.email || undefined,
-          address: lead.address || undefined,
-          source: lead.source,
+      preview.forEach((lead) => {
+        const docRef = doc(collection(db, 'leads'));
+        batch.set(docRef, {
+          ...lead,
           organizationId: user.organizationId,
           status: 'new',
           createdBy: user.id,
           createdAt: new Date(),
           updatedAt: new Date(),
-          notes: lead.notes ? [{
-            id: Date.now().toString(),
-            content: lead.notes,
-            createdBy: user.id,
-            createdAt: new Date(),
-            type: 'note'
-          }] : [],
+          notes: lead.notes
+            ? [
+                {
+                  id: Date.now().toString(),
+                  content: lead.notes,
+                  createdBy: user.id,
+                  createdAt: new Date(),
+                  type: 'note',
+                },
+              ]
+            : [],
           communications: [],
-          meetings: []
+          meetings: [],
         });
       });
 
-      await Promise.all(uploadPromises);
+      await batch.commit();
       setUploadStatus('success');
-
-      setTimeout(() => {
-        onSuccess();
-      }, 1500);
+      setTimeout(() => onSuccess(), 1500);
     } catch (error: any) {
       setError(error.message || 'Failed to upload leads');
       setUploadStatus('error');
@@ -184,9 +152,9 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
 
   const downloadTemplate = () => {
     const template = [
-      ['name', 'phone', 'email', 'address', 'source', 'notes'],
-      ['John Doe', '+1234567890', 'john@example.com', '123 Main St', 'website', 'Interested in our services'],
-      ['Jane Smith', '+1234567891', 'jane@example.com', '456 Oak Ave', 'referral', 'Referred by existing client']
+      ['Company Name', 'Manager Name', 'Manager Phone', 'Company Phone', 'Sector', 'Source', 'Notes'],
+      ['ABC Trading PLC', 'John Doe', '+251911000000', '+251111000000', 'Retail', 'Referral', 'Interested in partnership'],
+      ['XYZ Manufacturing', 'Jane Smith', '+251922111111', '+251112222222', 'Manufacturing', 'Website', 'Requested brochure'],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(template);
@@ -205,13 +173,10 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">Upload Leads from Excel</h2>
-              <p className="text-gray-600">Import multiple leads from an Excel file</p>
+              <p className="text-gray-600">Import multiple leads with company details</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -235,7 +200,6 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                     <div>
                       <h3 className="font-medium text-gray-800">Need a template?</h3>
                       <p className="text-sm text-gray-600">Download our Excel template to get started</p>
-                      <p className="text-xs text-blue-600 mt-1">Supports Amharic and other Unicode characters. Optional fields can be left empty.</p>
                     </div>
                   </div>
                   <button
@@ -250,14 +214,8 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
 
               {/* File Upload */}
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+
                 {file ? (
                   <div className="space-y-4">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -269,10 +227,7 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                         {preview.length > 0 ? `${preview.length} leads found` : 'Processing...'}
                       </p>
                     </div>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-blue-600 hover:text-blue-700 text-sm"
-                    >
+                    <button onClick={() => fileInputRef.current?.click()} className="text-blue-600 hover:text-blue-700 text-sm">
                       Choose different file
                     </button>
                   </div>
@@ -310,29 +265,23 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                   </h3>
                   <div className="bg-gray-50 rounded-lg overflow-hidden">
                     <div className="overflow-x-auto max-h-64">
-                      <table className="w-full text-sm" style={{ direction: 'ltr' }}>
+                      <table className="w-full text-sm">
                         <thead className="bg-gray-100">
                           <tr>
-                            <th className="text-left py-2 px-3 font-medium text-gray-700">Name</th>
-                            <th className="text-left py-2 px-3 font-medium text-gray-700">Phone</th>
-                            <th className="text-left py-2 px-3 font-medium text-gray-700">Email</th>
-                            <th className="text-left py-2 px-3 font-medium text-gray-700">Address</th>
-                            <th className="text-left py-2 px-3 font-medium text-gray-700">Source</th>
+                            <th className="text-left py-2 px-3">Company Name</th>
+                            <th className="text-left py-2 px-3">Manager Name</th>
+                            <th className="text-left py-2 px-3">Manager Phone</th>
+                            <th className="text-left py-2 px-3">Sector</th>
+                            <th className="text-left py-2 px-3">Source</th>
                           </tr>
                         </thead>
                         <tbody>
                           {preview.slice(0, 10).map((lead, index) => (
                             <tr key={index} className="border-b border-gray-200">
-                              <td className="py-2 px-3" style={{ unicodeBidi: 'plaintext' }}>
-                                {lead.name}
-                              </td>
-                              <td className="py-2 px-3">{lead.phone}</td>
-                              <td className="py-2 px-3">
-                                {lead.email ? lead.email : <span className="text-gray-400">-</span>}
-                              </td>
-                              <td className="py-2 px-3" style={{ unicodeBidi: 'plaintext' }}>
-                                {lead.address ? lead.address : <span className="text-gray-400">-</span>}
-                              </td>
+                              <td className="py-2 px-3">{lead.companyName}</td>
+                              <td className="py-2 px-3">{lead.managerName}</td>
+                              <td className="py-2 px-3">{lead.managerPhone}</td>
+                              <td className="py-2 px-3">{lead.sector}</td>
                               <td className="py-2 px-3">{lead.source}</td>
                             </tr>
                           ))}
@@ -348,7 +297,7 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Buttons */}
               <div className="flex items-center justify-end space-x-4 pt-6 border-t">
                 <button
                   onClick={onClose}
@@ -358,8 +307,8 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                 </button>
                 <button
                   onClick={handleUpload}
-                  disabled={loading || preview.length === 0 || uploadStatus === 'processing'}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                  disabled={loading || preview.length === 0}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
                 >
                   {loading ? (
                     <>
