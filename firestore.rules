@@ -43,9 +43,19 @@ service cloud.firestore {
     // Organizations - Admins can create/read/update/delete organizations
     // Users can only read their own organization
     match /organizations/{orgId} {
-      allow read: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        sameOrganization(orgId) ||
+        // Allow reading own organization during signup (org_userId pattern)
+        orgId == 'org_' + request.auth.uid
+      );
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isAdmin() || sameOrganization(orgId));
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        sameOrganization(orgId) ||
+        // Allow updating own organization during setup
+        orgId == 'org_' + request.auth.uid
+      );
       allow delete: if isAuthenticated() && isAdmin();
     }
     
