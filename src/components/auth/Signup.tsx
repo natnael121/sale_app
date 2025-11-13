@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { UserPlus, Mail, Lock, User, Building2 } from 'lucide-react';
 
@@ -88,7 +88,8 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
 
       // Create user document with admin role
       console.log('Creating user document');
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, {
         email: formData.email,
         name: formData.name,
         role: 'admin',
@@ -96,8 +97,15 @@ const Signup: React.FC<SignupProps> = ({ onSwitchToLogin }) => {
         createdAt: new Date(),
         isActive: true
       });
-      
+
       console.log('User document created successfully');
+
+      // Verify the user document was created
+      const verifyDoc = await getDoc(userDocRef);
+      if (!verifyDoc.exists()) {
+        throw new Error('Failed to verify user document creation');
+      }
+      console.log('User document verified');
 
     } catch (error: any) {
       console.error('Signup error:', error);

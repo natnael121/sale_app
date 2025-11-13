@@ -26,6 +26,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
     setLoading(true);
     setError('');
 
+    let firebaseUserCreated = false;
+    let createdUserId: string | null = null;
+
     try {
       // Create user account
       const userCredential = await createUserWithEmailAndPassword(
@@ -34,8 +37,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
         formData.password
       );
 
+      firebaseUserCreated = true;
+      createdUserId = userCredential.user.uid;
+
       // Create user document
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      await setDoc(userDocRef, {
         email: formData.email,
         name: formData.name,
         role: formData.role,
@@ -46,8 +53,24 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
 
       onSuccess();
     } catch (error: any) {
+      console.error('Create user error:', error);
+
+      // If Firebase user was created but Firestore operations failed, clean up
+      if (firebaseUserCreated && createdUserId) {
+        try {
+          console.log('Cleaning up Firebase user due to Firestore error');
+          const userToDelete = auth.currentUser;
+          if (userToDelete && userToDelete.uid === createdUserId) {
+            await userToDelete.delete();
+          }
+          console.log('Firebase user cleaned up successfully');
+        } catch (deleteError) {
+          console.error('Failed to clean up Firebase user:', deleteError);
+        }
+      }
+
       let errorMessage = 'Failed to create user';
-      
+
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage = 'An account with this email already exists';
@@ -58,10 +81,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
         case 'auth/weak-password':
           errorMessage = 'Password is too weak';
           break;
+        case 'permission-denied':
+          errorMessage = 'Permission denied. You may not have admin rights';
+          break;
         default:
           errorMessage = error.message || 'Failed to create user';
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
