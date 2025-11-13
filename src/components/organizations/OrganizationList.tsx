@@ -22,11 +22,14 @@ const OrganizationList: React.FC<OrganizationListProps> = ({ user }) => {
     try {
       const q = query(collection(db, 'organizations'));
       const snapshot = await getDocs(q);
-      const orgsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()
-      } as Organization));
+      const orgsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date()
+        } as Organization;
+      });
       setOrganizations(orgsData);
     } catch (error) {
       console.error('Error fetching organizations:', error);
@@ -103,7 +106,7 @@ const OrganizationList: React.FC<OrganizationListProps> = ({ user }) => {
                   <div>
                     <h3 className="font-semibold text-gray-800">{org.name}</h3>
                     <p className="text-sm text-gray-500">
-                      Created {org.createdAt.toLocaleDateString()}
+                      Created {org.createdAt ? org.createdAt.toLocaleDateString() : 'N/A'}
                     </p>
                   </div>
                 </div>
