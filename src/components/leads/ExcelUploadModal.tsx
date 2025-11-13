@@ -43,17 +43,17 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellText: false, cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', blankrows: false }) as any[][];
 
         if (jsonData.length < 2) {
           setError('Excel file must contain at least a header row and one data row');
           return;
         }
 
-        const headers = jsonData[0].map((h: string) => h?.toLowerCase().trim());
+        const headers = jsonData[0].map((h: string) => String(h || '').toLowerCase().trim());
         const requiredColumns = [
           'company name',
           'manager name',
@@ -74,14 +74,21 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
           const row = jsonData[i];
           if (!row || row.length === 0) continue;
 
+          const getCellValue = (columnName: string): string => {
+            const index = headers.indexOf(columnName);
+            if (index === -1) return '';
+            const value = row[index];
+            return value !== null && value !== undefined ? String(value).trim() : '';
+          };
+
           const lead: LeadData = {
-            companyName: row[headers.indexOf('company name')] || '',
-            managerName: row[headers.indexOf('manager name')] || '',
-            managerPhone: row[headers.indexOf('manager phone')] || '',
-            companyPhone: row[headers.indexOf('company phone')] || '',
-            sector: row[headers.indexOf('sector')] || '',
-            source: row[headers.indexOf('source')] || 'excel_import',
-            notes: row[headers.indexOf('notes')] || ''
+            companyName: getCellValue('company name'),
+            managerName: getCellValue('manager name'),
+            managerPhone: getCellValue('manager phone'),
+            companyPhone: getCellValue('company phone'),
+            sector: getCellValue('sector'),
+            source: getCellValue('source') || 'excel_import',
+            notes: getCellValue('notes')
           };
 
           if (lead.companyName && lead.managerName && lead.managerPhone) {
