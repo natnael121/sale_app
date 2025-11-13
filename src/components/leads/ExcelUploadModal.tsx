@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { collection, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User } from '../../types';
 import { Upload, X, FileSpreadsheet, Download, AlertCircle, CheckCircle } from 'lucide-react';
@@ -42,17 +42,31 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, {
+          type: 'array',
+          cellText: false,
+          cellDates: true,
+          raw: false
+        });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false,
+          defval: '',
+          blankrows: false
+        }) as any[][];
 
         if (jsonData.length < 2) {
           setError('Excel file must contain at least a header row and one data row');
           return;
         }
 
-        const headers = jsonData[0].map((h: string) => h?.toLowerCase().trim());
+        const headers = jsonData[0].map((h: any) => {
+          if (h === null || h === undefined) return '';
+          return String(h).toLowerCase().trim();
+        });
+
         const requiredColumns = ['name', 'phone'];
         const missingColumns = requiredColumns.filter(col => !headers.includes(col));
 
@@ -66,22 +80,47 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
           const row = jsonData[i];
           if (!row || row.length === 0) continue;
 
-          const lead: LeadData = {
-            name: row[headers.indexOf('name')] || '',
-            phone: row[headers.indexOf('phone')] || '',
-            email: row[headers.indexOf('email')] || '',
-            address: row[headers.indexOf('address')] || '',
-            source: row[headers.indexOf('source')] || 'excel_import',
-            notes: row[headers.indexOf('notes')] || ''
+          const nameIndex = headers.indexOf('name');
+          const phoneIndex = headers.indexOf('phone');
+          const emailIndex = headers.indexOf('email');
+          const addressIndex = headers.indexOf('address');
+          const sourceIndex = headers.indexOf('source');
+          const notesIndex = headers.indexOf('notes');
+
+          const getName = (val: any): string => {
+            if (val === null || val === undefined || val === '') return '';
+            return String(val).trim();
           };
 
-          if (lead.name && lead.phone) {
-            leads.push(lead);
-          }
+          const getPhone = (val: any): string => {
+            if (val === null || val === undefined || val === '') return '';
+            return String(val).trim();
+          };
+
+          const getOptionalField = (val: any): string => {
+            if (val === null || val === undefined || val === '') return '';
+            return String(val).trim();
+          };
+
+          const name = getName(row[nameIndex]);
+          const phone = getPhone(row[phoneIndex]);
+
+          if (!name || !phone) continue;
+
+          const lead: LeadData = {
+            name,
+            phone,
+            email: emailIndex >= 0 ? getOptionalField(row[emailIndex]) : '',
+            address: addressIndex >= 0 ? getOptionalField(row[addressIndex]) : '',
+            source: sourceIndex >= 0 && getOptionalField(row[sourceIndex]) ? getOptionalField(row[sourceIndex]) : 'excel_import',
+            notes: notesIndex >= 0 ? getOptionalField(row[notesIndex]) : ''
+          };
+
+          leads.push(lead);
         }
 
         if (leads.length === 0) {
-          setError('No valid leads found in the Excel file');
+          setError('No valid leads found in the Excel file. Make sure name and phone columns are filled.');
           return;
         }
 
@@ -103,13 +142,15 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
     setError('');
 
     try {
-      const batch = writeBatch(db);
       const leadsCollection = collection(db, 'leads');
 
-      preview.forEach((lead) => {
-        const docRef = collection(db, 'leads').doc();
-        batch.set(docRef, {
-          ...lead,
+      const uploadPromises = preview.map((lead) => {
+        return addDoc(leadsCollection, {
+          name: lead.name,
+          phone: lead.phone,
+          email: lead.email || undefined,
+          address: lead.address || undefined,
+          source: lead.source,
           organizationId: user.organizationId,
           status: 'new',
           createdBy: user.id,
@@ -127,9 +168,9 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
         });
       });
 
-      await batch.commit();
+      await Promise.all(uploadPromises);
       setUploadStatus('success');
-      
+
       setTimeout(() => {
         onSuccess();
       }, 1500);
@@ -194,6 +235,7 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                     <div>
                       <h3 className="font-medium text-gray-800">Need a template?</h3>
                       <p className="text-sm text-gray-600">Download our Excel template to get started</p>
+                      <p className="text-xs text-blue-600 mt-1">Supports Amharic and other Unicode characters. Optional fields can be left empty.</p>
                     </div>
                   </div>
                   <button
@@ -268,21 +310,29 @@ const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({ user, onClose, onSu
                   </h3>
                   <div className="bg-gray-50 rounded-lg overflow-hidden">
                     <div className="overflow-x-auto max-h-64">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm" style={{ direction: 'ltr' }}>
                         <thead className="bg-gray-100">
                           <tr>
                             <th className="text-left py-2 px-3 font-medium text-gray-700">Name</th>
                             <th className="text-left py-2 px-3 font-medium text-gray-700">Phone</th>
                             <th className="text-left py-2 px-3 font-medium text-gray-700">Email</th>
+                            <th className="text-left py-2 px-3 font-medium text-gray-700">Address</th>
                             <th className="text-left py-2 px-3 font-medium text-gray-700">Source</th>
                           </tr>
                         </thead>
                         <tbody>
                           {preview.slice(0, 10).map((lead, index) => (
                             <tr key={index} className="border-b border-gray-200">
-                              <td className="py-2 px-3">{lead.name}</td>
+                              <td className="py-2 px-3" style={{ unicodeBidi: 'plaintext' }}>
+                                {lead.name}
+                              </td>
                               <td className="py-2 px-3">{lead.phone}</td>
-                              <td className="py-2 px-3">{lead.email || '-'}</td>
+                              <td className="py-2 px-3">
+                                {lead.email ? lead.email : <span className="text-gray-400">-</span>}
+                              </td>
+                              <td className="py-2 px-3" style={{ unicodeBidi: 'plaintext' }}>
+                                {lead.address ? lead.address : <span className="text-gray-400">-</span>}
+                              </td>
                               <td className="py-2 px-3">{lead.source}</td>
                             </tr>
                           ))}
