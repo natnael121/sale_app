@@ -59,32 +59,39 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isAdmin();
     }
     
-    // Users - Allow creation by the user themselves, read/write with proper permissions
-    // Admins can create users for any organization, users can only create themselves
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(userId)) &&
-         sameOrganization(resource.data.organizationId))
-      );
-      // Allow user to create their own document during signup, or if they're already an admin
-      allow create: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && isAdmin())
-      );
-      allow update: if isAuthenticated() && (
-        request.auth.uid == userId ||
-        isAdmin() ||
-        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         sameOrganization(resource.data.organizationId) && isAdminOrSupervisor())
-      );
-      allow delete: if isAuthenticated() && (
-        isAdmin() ||
-        (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         sameOrganization(resource.data.organizationId) && isAdmin())
-      );
-    }
+   // Users - Allow creation by the user themselves, or by admins
+// Admins can create users for any organization, users can only create themselves or during initial org setup
+match /users/{userId} {
+  allow read: if isAuthenticated() && (
+    request.auth.uid == userId ||
+    isAdmin() ||
+    (exists(/databases/$(database)/documents/users/$(userId)) &&
+     sameOrganization(resource.data.organizationId))
+  );
+
+  // Allow user to create their own document during signup,
+  // allow admins to create others,
+  // and allow initial organization owner to create their own admin user document
+  allow create: if isAuthenticated() && (
+    request.auth.uid == userId ||
+    isAdmin() ||
+    request.resource.data.organizationId == 'org_' + request.auth.uid
+  );
+
+  // Allow update by user themselves, admins, or supervisors in the same organization
+  allow update: if isAuthenticated() && (
+    request.auth.uid == userId ||
+    isAdmin() ||
+    (sameOrganization(resource.data.organizationId) && isAdminOrSupervisor())
+  );
+
+  // Allow delete by admins in the same organization
+  allow delete: if isAuthenticated() && (
+    isAdmin() ||
+    (sameOrganization(resource.data.organizationId) && isAdmin())
+  );
+}
+
     
     // Leads - Organization-scoped access with role-based permissions
     match /leads/{leadId} {
