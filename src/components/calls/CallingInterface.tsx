@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, updateDoc, doc, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, orderBy, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User, Lead, Communication, CallOutcome } from '../../types';
 import { Phone, PhoneCall, Clock, User as UserIcon, MapPin, Mail, Play, Pause, SkipForward, CheckCircle, XCircle, Calendar, AlertCircle } from 'lucide-react';
@@ -211,7 +211,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
       try {
         await updateDoc(doc(db, 'leads', firstLead.id), {
           currentlyCallingBy: user.id,
-          currentlyCallingAt: new Date()
+          currentlyCallingAt: Timestamp.now()
         });
       } catch (error) {
         console.error('Error marking lead as being called:', error);
@@ -258,17 +258,22 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     if (!currentLead) return;
 
     try {
-      // Add communication record with generated ID
+      // Add communication record with generated ID and Timestamp conversion
       const communicationId = `${currentLead.id}_${Date.now()}`;
-      const communication: Communication = {
+      const communication = {
         id: communicationId,
         type: 'call',
         direction: 'outbound',
-        outcome: callData.outcome,
-        duration: callData.duration,
-        content: callData.notes,
+        outcome: {
+          picked: callData.outcome.picked,
+          result: callData.outcome.result,
+          nextAction: callData.outcome.nextAction || null,
+          nextActionDate: callData.outcome.nextActionDate ? Timestamp.fromDate(callData.outcome.nextActionDate) : null
+        },
+        duration: callData.duration || null,
+        content: callData.notes || null,
         createdBy: user.id,
-        createdAt: new Date()
+        createdAt: Timestamp.now()
       };
 
       // Update lead with new communication
@@ -313,11 +318,11 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           organizationId: user.organizationId,
           scheduledBy: user.id,
           assignedTo: callData.assignedTo,
-          scheduledAt: callData.meetingDate,
+          scheduledAt: Timestamp.fromDate(callData.meetingDate),
           status: 'scheduled',
           location: currentLead.address || 'To be determined',
           notes: `Meeting scheduled via call center. Company: ${leadName}, Phone: ${leadPhone}`,
-          createdAt: new Date()
+          createdAt: Timestamp.now()
         });
       }
       await updateDoc(doc(db, 'leads', currentLead.id), {
@@ -326,7 +331,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
         assignedTo,
         currentlyCallingBy: null,
         currentlyCallingAt: null,
-        updatedAt: new Date()
+        updatedAt: Timestamp.now()
       });
 
       // Move to next lead
@@ -339,7 +344,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           try {
             await updateDoc(doc(db, 'leads', nextLead.id), {
               currentlyCallingBy: user.id,
-              currentlyCallingAt: new Date()
+              currentlyCallingAt: Timestamp.now()
             });
           } catch (error) {
             console.error('Error marking next lead as being called:', error);
@@ -389,7 +394,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
         try {
           await updateDoc(doc(db, 'leads', nextLead.id), {
             currentlyCallingBy: user.id,
-            currentlyCallingAt: new Date()
+            currentlyCallingAt: Timestamp.now()
           });
         } catch (error) {
           console.error('Error marking next lead as being called on skip:', error);
