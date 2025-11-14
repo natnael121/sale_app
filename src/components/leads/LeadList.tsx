@@ -75,11 +75,13 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
   };
 
   const handleCall = (lead: Lead) => {
-    window.open(`tel:${lead.phone}`, '_self');
+    const phone = lead.phone || lead.managerPhone || lead.companyPhone;
+    if (phone) window.open(`tel:${phone}`, '_self');
   };
 
   const handleSMS = (lead: Lead) => {
-    window.open(`sms:${lead.phone}`, '_blank');
+    const phone = lead.phone || lead.managerPhone || lead.companyPhone;
+    if (phone) window.open(`sms:${phone}`, '_blank');
   };
 
   const handleEmail = (lead: Lead) => {
@@ -98,13 +100,22 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
     return lead.communications[lead.communications.length - 1];
   };
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lead.phone.includes(searchTerm) ||
-                         (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredLeads = React.useMemo(() => {
+    return leads.filter(lead => {
+      const name = lead.name || lead.companyName || '';
+      const phone = lead.phone || lead.managerPhone || lead.companyPhone || '';
+      const managerName = lead.managerName || '';
+      const sector = lead.sector || '';
+
+      const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           managerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           phone.includes(searchTerm) ||
+                           sector.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [leads, searchTerm, statusFilter]);
 
   const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
   const startIndex = (currentPage - 1) * leadsPerPage;
@@ -248,7 +259,7 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
                       <UserIcon className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-800 text-sm truncate">{lead.name}</p>
+                      <p className="font-medium text-gray-800 text-sm truncate">{lead.name || lead.companyName}</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
                         {lead.status.replace('_', ' ')}
                       </span>
@@ -258,9 +269,15 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
                 
                 {/* Contact Info */}
                 <div className="space-y-2 mb-3">
+                  {lead.managerName && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <UserIcon className="w-3 h-3 mr-2 flex-shrink-0" />
+                      <span className="truncate">{lead.managerName}</span>
+                    </div>
+                  )}
                   <div className="flex items-center text-sm text-gray-600">
                     <Phone className="w-3 h-3 mr-2 flex-shrink-0" />
-                    <span className="truncate">{lead.phone}</span>
+                    <span className="truncate">{lead.phone || lead.managerPhone || lead.companyPhone}</span>
                   </div>
                   {lead.email && (
                     <div className="flex items-center text-sm text-gray-600">
@@ -272,6 +289,12 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
                     <div className="flex items-center text-sm text-gray-600">
                       <MapPin className="w-3 h-3 mr-2 flex-shrink-0" />
                       <span className="truncate">{lead.address}</span>
+                    </div>
+                  )}
+                  {lead.sector && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="font-semibold mr-1">Sector:</span>
+                      <span className="truncate">{lead.sector}</span>
                     </div>
                   )}
                 </div>

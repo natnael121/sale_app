@@ -32,8 +32,13 @@ export interface OrganizationSettings {
 export interface Lead {
   id: string;
   organizationId: string;
-  name: string;
-  phone: string;
+  name?: string;
+  phone?: string;
+  companyName?: string;
+  managerName?: string;
+  managerPhone?: string;
+  companyPhone?: string;
+  sector?: string;
   email?: string;
   address?: string;
   source: string;
@@ -42,9 +47,9 @@ export interface Lead {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
-  notes: LeadNote[];
-  communications: Communication[];
-  meetings: Meeting[];
+  notes?: LeadNote[] | string;
+  communications?: Communication[];
+  meetings?: Meeting[];
   value?: number;
 }
 

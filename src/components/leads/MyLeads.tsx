@@ -112,18 +112,27 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
     return lead.communications[lead.communications.length - 1];
   };
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch =
-      lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (lead.managerName && lead.managerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (lead.managerPhone && lead.managerPhone.includes(searchTerm)) ||
-      (lead.companyPhone && lead.companyPhone.includes(searchTerm)) ||
-      (lead.email && lead.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (lead.sector && lead.sector.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredLeads = React.useMemo(() => {
+    return leads.filter(lead => {
+      const companyName = lead.companyName || lead.name || '';
+      const managerName = lead.managerName || '';
+      const managerPhone = lead.managerPhone || lead.phone || '';
+      const companyPhone = lead.companyPhone || '';
+      const sector = lead.sector || '';
+      const email = lead.email || '';
 
-    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+      const matchesSearch =
+        companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        managerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        managerPhone.includes(searchTerm) ||
+        companyPhone.includes(searchTerm) ||
+        email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sector.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [leads, searchTerm, statusFilter]);
 
   const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
   const startIndex = (currentPage - 1) * leadsPerPage;
@@ -264,7 +273,7 @@ const MyLeads: React.FC<MyLeadsProps> = ({ user }) => {
                       <UserIcon className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-800 text-sm truncate">{lead.companyName}</p>
+                      <p className="font-medium text-gray-800 text-sm truncate">{lead.companyName || lead.name}</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
                         {lead.status.replace('_', ' ')}
                       </span>
