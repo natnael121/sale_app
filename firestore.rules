@@ -81,22 +81,20 @@ service cloud.firestore {
          sameOrganization(resource.data.organizationId))
       );
 
-      // Allow user to create their own document during signup
-      // The user must be creating their own document (userId matches auth.uid)
-      // AND either:
-      //   - They're an admin creating another user
-      //   - They're creating themselves with their signup organization (org_userId pattern)
-      //   - They're creating themselves with any organization (for admins adding users)
-      allow create: if isAuthenticated() &&
-        request.auth.uid == userId && (
-          // During signup: user creates themselves as admin of new org
-          (request.resource.data.organizationId == 'org_' + request.auth.uid &&
-           request.resource.data.role == 'admin') ||
-          // Admins can create users (but admin check requires existing user doc, so handled separately)
-          isAdmin()
-        ) ||
-        // Admins can create other users
-        (isAuthenticated() && isAdmin());
+      // Allow user creation:
+      // 1. User creating their own document during signup (userId == auth.uid)
+      // 2. Admin creating any user (isAdmin() returns true)
+      // 3. Any authenticated user creating a user document if the creator is an admin in the same org
+      allow create: if isAuthenticated() && (
+        // Self-creation during signup with org pattern
+        (request.auth.uid == userId &&
+         request.resource.data.organizationId == 'org_' + request.auth.uid &&
+         request.resource.data.role == 'admin') ||
+        // Admin creating any user in their organization
+        (isAdmin() && sameOrganization(request.resource.data.organizationId)) ||
+        // Admin creating any user (for initial setup or cross-org admin)
+        isAdmin()
+      );
 
       // Allow update by user themselves, admins, or supervisors in the same organization
       allow update: if isAuthenticated() && (

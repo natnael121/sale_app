@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { User } from '../../types';
@@ -26,13 +27,28 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
     setLoading(true);
     setError('');
 
+    let secondaryApp: any = null;
     let firebaseUserCreated = false;
     let createdUserId: string | null = null;
 
     try {
-      // Create user account
+      // Create a secondary Firebase app instance to avoid logging out the admin
+      const firebaseConfig = {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID,
+      };
+
+      // Initialize secondary app with a unique name
+      secondaryApp = initializeApp(firebaseConfig, 'Secondary-' + Date.now());
+      const secondaryAuth = getAuth(secondaryApp);
+
+      // Create user account using secondary auth (won't affect admin session)
       const userCredential = await createUserWithEmailAndPassword(
-        auth,
+        secondaryAuth,
         formData.email,
         formData.password
       );
@@ -40,7 +56,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
       firebaseUserCreated = true;
       createdUserId = userCredential.user.uid;
 
-      // Create user document
+      // Create user document in Firestore (using primary db connection)
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       await setDoc(userDocRef, {
         email: formData.email,
@@ -51,21 +67,21 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
         isActive: true
       });
 
+      // Delete the secondary app
+      if (secondaryApp) {
+        await secondaryApp.delete();
+      }
+
       onSuccess();
     } catch (error: any) {
       console.error('Create user error:', error);
 
-      // If Firebase user was created but Firestore operations failed, clean up
-      if (firebaseUserCreated && createdUserId) {
+      // Clean up secondary app if it exists
+      if (secondaryApp) {
         try {
-          console.log('Cleaning up Firebase user due to Firestore error');
-          const userToDelete = auth.currentUser;
-          if (userToDelete && userToDelete.uid === createdUserId) {
-            await userToDelete.delete();
-          }
-          console.log('Firebase user cleaned up successfully');
+          await secondaryApp.delete();
         } catch (deleteError) {
-          console.error('Failed to clean up Firebase user:', deleteError);
+          console.error('Failed to delete secondary app:', deleteError);
         }
       }
 
@@ -82,7 +98,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ user, onClose, onSucc
           errorMessage = 'Password is too weak';
           break;
         case 'permission-denied':
-          errorMessage = 'Permission denied. You may not have admin rights';
+          errorMessage = 'Permission denied. The user was created in Firebase Auth but the database document could not be created. Please check Firestore security rules.';
           break;
         default:
           errorMessage = error.message || 'Failed to create user';
