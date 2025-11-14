@@ -82,14 +82,11 @@ service cloud.firestore {
     // Admins can create users for any organization, users can only create themselves or during initial org setup
     // For read: allow if user is reading their own doc, user is admin, or both users are in same organization
     match /users/{userId} {
+      // Simplified read rule using resource.data directly
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
         isAdmin() ||
-        (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          exists(/databases/$(database)/documents/users/$(userId)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == get(/databases/$(database)/documents/users/$(userId)).data.organizationId
-        )
+        sameOrganization(resource.data.organizationId)
       );
 
       // Allow user creation:
