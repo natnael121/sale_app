@@ -119,7 +119,9 @@ const CallLogModal: React.FC<CallLogModalProps> = ({ lead, onClose, onSave, avai
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">Log Call</h2>
-              <p className="text-gray-600">{lead.name} - {lead.phone}</p>
+              <p className="text-gray-600">
+                {lead.companyName || lead.name || 'Company'} - {lead.managerPhone || lead.companyPhone || lead.phone || 'N/A'}
+              </p>
             </div>
           </div>
           <button
