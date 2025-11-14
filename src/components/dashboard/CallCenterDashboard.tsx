@@ -102,8 +102,8 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
   };
 
   const handleSMS = (lead: Lead) => {
-    // Implement SMS functionality
-    window.open(`sms:${lead.phone}`, '_blank');
+    const phone = lead.managerPhone || lead.companyPhone || lead.phone;
+    if (phone) window.open(`sms:${phone}`, '_blank');
   };
 
   const handleEmail = (lead: Lead) => {
@@ -349,18 +349,24 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
                         <UserIcon className="w-4 h-4 text-orange-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-800 text-sm">{lead.name}</p>
+                        <p className="font-medium text-gray-800 text-sm">{lead.companyName || lead.name || 'No Name'}</p>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
                           {lead.status.replace('_', ' ')}
                         </span>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 mb-3">
+                    {lead.managerName && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <UserIcon className="w-3 h-3 mr-2" />
+                        {lead.managerName}
+                      </div>
+                    )}
                     <div className="flex items-center text-sm text-gray-600">
                       <Phone className="w-3 h-3 mr-2" />
-                      {lead.phone}
+                      {lead.managerPhone || lead.companyPhone || lead.phone || 'N/A'}
                     </div>
                     {lead.email && (
                       <div className="flex items-center text-sm text-gray-600">
@@ -385,7 +391,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
 
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => window.open(`tel:${lead.phone}`, '_self')}
+                      onClick={() => window.open(`tel:${lead.managerPhone || lead.companyPhone || lead.phone}`, '_self')}
                       className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
                     >
                       <Phone className="w-3 h-3" />
@@ -400,7 +406,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
                     {lead.email && (
                       <button
                         onClick={() => handleEmail(lead)}
-                        className="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700 transition-colors"
+                        className="bg-orange-600 text-white px-3 py-2 rounded text-sm hover:bg-orange-700 transition-colors"
                       >
                         <Mail className="w-3 h-3" />
                       </button>
@@ -429,23 +435,35 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
                       <UserIcon className="w-4 h-4 text-blue-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-800 text-sm">{lead.name}</p>
+                      <p className="font-medium text-gray-800 text-sm">{lead.companyName || lead.name || 'No Name'}</p>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
                         {lead.status.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2 mb-3">
+                  {lead.managerName && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <UserIcon className="w-3 h-3 mr-2" />
+                      {lead.managerName}
+                    </div>
+                  )}
                   <div className="flex items-center text-sm text-gray-600">
                     <Phone className="w-3 h-3 mr-2" />
-                    {lead.phone}
+                    {lead.managerPhone || lead.companyPhone || lead.phone || 'N/A'}
                   </div>
                   {lead.email && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Mail className="w-3 h-3 mr-2" />
                       {lead.email}
+                    </div>
+                  )}
+                  {lead.sector && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <span className="font-semibold mr-1">Sector:</span>
+                      <span>{lead.sector}</span>
                     </div>
                   )}
                   <div className="text-xs text-gray-500">
@@ -462,7 +480,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
 
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => window.open(`tel:${lead.phone}`, '_self')}
+                    onClick={() => window.open(`tel:${lead.managerPhone || lead.companyPhone || lead.phone}`, '_self')}
                     className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
                   >
                     <Phone className="w-3 h-3" />
@@ -477,7 +495,7 @@ const CallCenterDashboard: React.FC<CallCenterDashboardProps> = ({ user }) => {
                   {lead.email && (
                     <button
                       onClick={() => handleEmail(lead)}
-                      className="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700 transition-colors"
+                      className="bg-orange-600 text-white px-3 py-2 rounded text-sm hover:bg-orange-700 transition-colors"
                     >
                       <Mail className="w-3 h-3" />
                     </button>
