@@ -123,7 +123,11 @@ service cloud.firestore {
         isAdminOrSupervisor() ||
         resource.data.assignedTo == request.auth.uid ||
         resource.data.createdBy == request.auth.uid ||
-        (hasRole('call_center') && (!('assignedTo' in resource.data) || resource.data.assignedTo == null))
+        (hasRole('call_center') && (
+          (!('assignedTo' in resource.data) || resource.data.assignedTo == null) ||
+          resource.data.currentlyCallingBy == request.auth.uid ||
+          (!('currentlyCallingBy' in resource.data) || resource.data.currentlyCallingBy == null)
+        ))
       );
       allow delete: if sameOrganization(resource.data.organizationId) && isAdminOrSupervisor();
     }

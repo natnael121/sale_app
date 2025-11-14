@@ -76,9 +76,22 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
       // Filter leads based on calling rules
       const callableLeads = allLeads.filter(lead => {
         // Don't show leads that are already converted, closed, or have meetings scheduled
-        if (lead.status === 'converted' || lead.status === 'closed' || 
+        if (lead.status === 'converted' || lead.status === 'closed' ||
             lead.status === 'meeting_scheduled' || lead.status === 'meeting_completed') {
           return false;
+        }
+
+        // Don't show leads that are currently being called by another agent
+        if (lead.currentlyCallingBy && lead.currentlyCallingBy !== user.id) {
+          // Check if the call session is still active (within last 30 minutes)
+          if (lead.currentlyCallingAt) {
+            const callingTime = new Date(lead.currentlyCallingAt).getTime();
+            const now = Date.now();
+            const thirtyMinutes = 30 * 60 * 1000;
+            if (now - callingTime < thirtyMinutes) {
+              return false;
+            }
+          }
         }
 
         // Check if lead has recent communications
@@ -189,14 +202,40 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     }
   };
 
-  const startCalling = () => {
+  const startCalling = async () => {
     if (leads.length === 0) return;
+
+    // Mark the first lead as currently being called
+    const firstLead = leads[0];
+    if (firstLead) {
+      try {
+        await updateDoc(doc(db, 'leads', firstLead.id), {
+          currentlyCallingBy: user.id,
+          currentlyCallingAt: new Date()
+        });
+      } catch (error) {
+        console.error('Error marking lead as being called:', error);
+      }
+    }
+
     setIsCallActive(true);
     setCallStartTime(new Date());
     setCallDuration(0);
   };
 
-  const stopCalling = () => {
+  const stopCalling = async () => {
+    // Clear the currently calling marker from the current lead
+    if (currentLead) {
+      try {
+        await updateDoc(doc(db, 'leads', currentLead.id), {
+          currentlyCallingBy: null,
+          currentlyCallingAt: null
+        });
+      } catch (error) {
+        console.error('Error clearing calling marker:', error);
+      }
+    }
+
     setIsCallActive(false);
     setCallStartTime(null);
     setCallDuration(0);
@@ -265,6 +304,8 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
 
       // Create meeting if meeting was set up
       if (callData.outcome.result === 'meeting_setup' && callData.meetingDate && callData.assignedTo) {
+        const leadName = currentLead.companyName || currentLead.name || 'Unknown';
+        const leadPhone = currentLead.managerPhone || currentLead.companyPhone || currentLead.phone || 'N/A';
         await addDoc(collection(db, 'meetings'), {
           leadId: currentLead.id,
           organizationId: user.organizationId,
@@ -273,7 +314,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           scheduledAt: callData.meetingDate,
           status: 'scheduled',
           location: currentLead.address || 'To be determined',
-          notes: `Meeting scheduled via call center. Lead: ${currentLead.name}, Phone: ${currentLead.phone}`,
+          notes: `Meeting scheduled via call center. Company: ${leadName}, Phone: ${leadPhone}`,
           createdAt: new Date()
         });
       }
@@ -281,6 +322,8 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
         communications: updatedCommunications,
         status: newStatus,
         assignedTo,
+        currentlyCallingBy: null,
+        currentlyCallingAt: null,
         updatedAt: new Date()
       });
 
@@ -288,6 +331,18 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
       const nextIndex = currentLeadIndex + 1;
       if (nextIndex < leads.length) {
         setCurrentLeadIndex(nextIndex);
+        // Mark the next lead as being called
+        const nextLead = leads[nextIndex];
+        if (nextLead) {
+          try {
+            await updateDoc(doc(db, 'leads', nextLead.id), {
+              currentlyCallingBy: user.id,
+              currentlyCallingAt: new Date()
+            });
+          } catch (error) {
+            console.error('Error marking next lead as being called:', error);
+          }
+        }
       } else {
         // Refresh leads list when done with current batch
         await fetchCallableLeads();
@@ -310,10 +365,34 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     }
   };
 
-  const skipLead = () => {
+  const skipLead = async () => {
+    // Clear the currently calling marker from the current lead
+    if (currentLead) {
+      try {
+        await updateDoc(doc(db, 'leads', currentLead.id), {
+          currentlyCallingBy: null,
+          currentlyCallingAt: null
+        });
+      } catch (error) {
+        console.error('Error clearing calling marker on skip:', error);
+      }
+    }
+
     const nextIndex = currentLeadIndex + 1;
     if (nextIndex < leads.length) {
       setCurrentLeadIndex(nextIndex);
+      // Mark the next lead as being called
+      const nextLead = leads[nextIndex];
+      if (nextLead) {
+        try {
+          await updateDoc(doc(db, 'leads', nextLead.id), {
+            currentlyCallingBy: user.id,
+            currentlyCallingAt: new Date()
+          });
+        } catch (error) {
+          console.error('Error marking next lead as being called on skip:', error);
+        }
+      }
     } else {
       setCurrentLeadIndex(0);
     }
@@ -463,7 +542,12 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
                       <UserIcon className="w-8 h-8 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-800">{currentLead.name}</h3>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {currentLead.companyName || currentLead.name || 'No Name'}
+                      </h3>
+                      {currentLead.managerName && (
+                        <p className="text-gray-600">Manager: {currentLead.managerName}</p>
+                      )}
                       <p className="text-gray-600">Status: {currentLead.status.replace('_', ' ')}</p>
                       {isFollowUp && (
                         <div className="flex items-center space-x-1 mt-1">
@@ -474,16 +558,39 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
                     </div>
                   </div>
                   <div className="text-right">
+                    {currentLead.sector && (
+                      <p className="text-sm text-gray-500">Sector: {currentLead.sector}</p>
+                    )}
                     <p className="text-sm text-gray-500">Source: {currentLead.source}</p>
                     <p className="text-sm text-gray-500">Created: {currentLead.createdAt.toLocaleDateString()}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div className="flex items-center space-x-2">
-                    <Phone className="w-4 h-4 text-gray-400" />
-                    <span className="font-medium">{currentLead.phone}</span>
-                  </div>
+                  {currentLead.managerPhone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Manager Phone</p>
+                        <span className="font-medium">{currentLead.managerPhone}</span>
+                      </div>
+                    </div>
+                  )}
+                  {currentLead.companyPhone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Company Phone</p>
+                        <span className="font-medium">{currentLead.companyPhone}</span>
+                      </div>
+                    </div>
+                  )}
+                  {currentLead.phone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium">{currentLead.phone}</span>
+                    </div>
+                  )}
                   {currentLead.email && (
                     <div className="flex items-center space-x-2">
                       <Mail className="w-4 h-4 text-gray-400" />

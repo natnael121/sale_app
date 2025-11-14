@@ -51,6 +51,8 @@ export interface Lead {
   communications?: Communication[];
   meetings?: Meeting[];
   value?: number;
+  currentlyCallingBy?: string;
+  currentlyCallingAt?: Date;
 }
 
 export interface LeadNote {
