@@ -22,6 +22,13 @@ service cloud.firestore {
     function sameOrganization(orgId) {
       return isAuthenticated() && getUserOrg() == orgId;
     }
+
+    // Helper function to check if user's organization matches the resource's organization
+    // This version avoids extra reads by using a passed orgId directly
+    function sameOrgDirect(orgId) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == orgId;
+    }
     
     // Helper function to check user role
     function hasRole(role) {
@@ -73,12 +80,16 @@ service cloud.firestore {
     
     // Users - Allow creation by the user themselves, or by admins
     // Admins can create users for any organization, users can only create themselves or during initial org setup
+    // For read: allow if user is reading their own doc, user is admin, or both users are in same organization
     match /users/{userId} {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
         isAdmin() ||
-        (getUserOrg() != null && exists(/databases/$(database)/documents/users/$(userId)) &&
-         getUserOrg() == get(/databases/$(database)/documents/users/$(userId)).data.organizationId)
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          exists(/databases/$(database)/documents/users/$(userId)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId == get(/databases/$(database)/documents/users/$(userId)).data.organizationId
+        )
       );
 
       // Allow user creation:

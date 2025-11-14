@@ -42,6 +42,8 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
   const fetchAvailableUsers = async () => {
     setLoadingUsers(true);
     try {
+      console.log('Current user info:', { id: user.id, orgId: user.organizationId, role: user.role });
+
       // Fetch all users in the organization (including current user)
       const q = query(
         collection(db, 'users'),
@@ -55,15 +57,18 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
         role: doc.data().role || 'user'
       }));
 
-      console.log('Fetched available users:', users);
+      console.log('Fetched available users:', users, 'Count:', users.length);
       setAvailableUsers(users);
 
       if (users.length === 0) {
         console.warn('No users found in organization:', user.organizationId);
+        setError('No team members found in your organization');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching available users:', error);
-      setError('Failed to load team members');
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      setError(`Failed to load team members: ${error.message}`);
     } finally {
       setLoadingUsers(false);
     }
