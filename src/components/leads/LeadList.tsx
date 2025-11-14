@@ -20,6 +20,8 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCreateMeetingModal, setShowCreateMeetingModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const leadsPerPage = 20;
 
   useEffect(() => {
     fetchLeads();
@@ -103,6 +105,15 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
+  const startIndex = (currentPage - 1) * leadsPerPage;
+  const endIndex = startIndex + leadsPerPage;
+  const currentLeads = filteredLeads.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   if (loading) {
     return (
@@ -200,8 +211,33 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredLeads.map((lead) => {
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-600">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredLeads.length)} of {filteredLeads.length} leads
+            </p>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {currentLeads.map((lead) => {
             const lastComm = getLastCommunication(lead);
             return (
               <div key={lead.id} className="bg-white p-4 rounded-lg shadow-sm border hover:shadow-md transition-shadow">
@@ -295,6 +331,7 @@ const LeadList: React.FC<LeadListProps> = ({ user }) => {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Modals */}
