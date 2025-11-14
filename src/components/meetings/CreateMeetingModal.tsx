@@ -22,6 +22,7 @@ interface MeetingFormData {
 
 const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState('');
   const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -39,24 +40,32 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
   }, [lead, setValue]);
 
   const fetchAvailableUsers = async () => {
+    setLoadingUsers(true);
     try {
-      // All roles can see all active users in their organization
+      // Fetch all users in the organization (including current user)
       const q = query(
         collection(db, 'users'),
-        where('organizationId', '==', user.organizationId),
-        where('isActive', '==', true)
+        where('organizationId', '==', user.organizationId)
       );
-      
+
       const snapshot = await getDocs(q);
       const users = snapshot.docs.map(doc => ({
         id: doc.id,
-        name: doc.data().name,
-        role: doc.data().role
+        name: doc.data().name || 'Unknown User',
+        role: doc.data().role || 'user'
       }));
-      
+
+      console.log('Fetched available users:', users);
       setAvailableUsers(users);
+
+      if (users.length === 0) {
+        console.warn('No users found in organization:', user.organizationId);
+      }
     } catch (error) {
       console.error('Error fetching available users:', error);
+      setError('Failed to load team members');
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -174,8 +183,11 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
               <select
                 {...register('assignedTo', { required: 'Please assign to a team member' })}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                disabled={loadingUsers}
               >
-                <option value="">Select team member...</option>
+                <option value="">
+                  {loadingUsers ? 'Loading team members...' : 'Select team member...'}
+                </option>
                 {availableUsers.map((userOption) => (
                   <option key={userOption.id} value={userOption.id}>
                     {userOption.name} ({userOption.role.replace('_', ' ')})
@@ -186,6 +198,9 @@ const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({ user, lead, onC
             </div>
             {errors.assignedTo && (
               <p className="text-red-600 text-sm mt-1">{errors.assignedTo.message}</p>
+            )}
+            {!loadingUsers && availableUsers.length === 0 && (
+              <p className="text-yellow-600 text-sm mt-1">No team members found in your organization</p>
             )}
           </div>
 
