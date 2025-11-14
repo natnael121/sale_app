@@ -258,8 +258,10 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
     if (!currentLead) return;
 
     try {
-      // Add communication record
-      const communication: Omit<Communication, 'id'> = {
+      // Add communication record with generated ID
+      const communicationId = `${currentLead.id}_${Date.now()}`;
+      const communication: Communication = {
+        id: communicationId,
         type: 'call',
         direction: 'outbound',
         outcome: callData.outcome,
