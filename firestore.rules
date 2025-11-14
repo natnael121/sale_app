@@ -140,11 +140,14 @@ service cloud.firestore {
       allow delete: if sameOrganization(resource.data.organizationId) && isAdminOrSupervisor();
     }
     
-    // Meetings - Organization-scoped with agent restrictions  
+    // Meetings - Organization-scoped with agent restrictions
     match /meetings/{meetingId} {
-      allow read: if sameOrganization(resource.data.organizationId);
-      allow create: if isAuthenticated() && 
-        sameOrganization(request.resource.data.organizationId) && 
+      allow read: if isAuthenticated() && (
+        sameOrganization(resource.data.organizationId) ||
+        resource.data.assignedTo == request.auth.uid
+      );
+      allow create: if isAuthenticated() &&
+        sameOrganization(request.resource.data.organizationId) &&
         canManageLeads();
       allow update: if sameOrganization(resource.data.organizationId) && (
         isAdminOrSupervisor() ||
