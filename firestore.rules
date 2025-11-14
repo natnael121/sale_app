@@ -77,8 +77,8 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
         isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(userId)) &&
-         sameOrganization(resource.data.organizationId))
+        (getUserOrg() != null && exists(/databases/$(database)/documents/users/$(userId)) &&
+         getUserOrg() == get(/databases/$(database)/documents/users/$(userId)).data.organizationId)
       );
 
       // Allow user creation:
