@@ -278,7 +278,7 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
 
       // Update lead with new communication
       const updatedCommunications = [...(currentLead.communications || []), communication];
-      
+
       // Update lead status based on call outcome
       let newStatus = currentLead.status;
       let assignedTo = currentLead.assignedTo;
@@ -325,14 +325,22 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
           createdAt: Timestamp.now()
         });
       }
-      await updateDoc(doc(db, 'leads', currentLead.id), {
+
+      // Prepare update data - only include assignedTo if it's not undefined/null
+      const updateData: any = {
         communications: updatedCommunications,
         status: newStatus,
-        assignedTo,
         currentlyCallingBy: null,
         currentlyCallingAt: null,
         updatedAt: Timestamp.now()
-      });
+      };
+
+      // Only add assignedTo if it has a valid value
+      if (assignedTo !== undefined && assignedTo !== null) {
+        updateData.assignedTo = assignedTo;
+      }
+
+      await updateDoc(doc(db, 'leads', currentLead.id), updateData);
 
       // Move to next lead
       const nextIndex = currentLeadIndex + 1;
