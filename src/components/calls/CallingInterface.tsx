@@ -111,30 +111,44 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
         if (lastComm) {
           const lastCommDate = new Date(lastComm.createdAt);
           const daysSinceLastComm = Math.floor((Date.now() - lastCommDate.getTime()) / (1000 * 60 * 60 * 24));
-          
+
           // If last call was busy/switched off/no answer, wait 1 day
-          if (lastComm.outcome && !lastComm.outcome.picked && 
-              (lastComm.outcome.result === 'switched_off' || 
+          if (lastComm.outcome && !lastComm.outcome.picked &&
+              (lastComm.outcome.result === 'switched_off' ||
                lastComm.outcome.result === 'no_answer') &&
               daysSinceLastComm < 1) {
             return false;
           }
 
           // Don't show leads marked as not interested or wrong number
-          if (lastComm.outcome && 
-              (lastComm.outcome.result === 'not_interested' || 
+          if (lastComm.outcome &&
+              (lastComm.outcome.result === 'not_interested' ||
                lastComm.outcome.result === 'wrong_number')) {
             return false;
           }
-          // If there's a follow-up scheduled for today or earlier, include it
-          if (lastComm.outcome?.nextActionDate) {
-            const nextActionDate = new Date(lastComm.outcome.nextActionDate);
-            nextActionDate.setHours(0, 0, 0, 0);
-            return nextActionDate <= today;
+
+          // IMPORTANT: Don't show leads that were successfully contacted (picked)
+          // and are now in an active state (interested, contacted)
+          // UNLESS they have a follow-up scheduled for today or earlier
+          if (lastComm.outcome && lastComm.outcome.picked) {
+            // Check if there's a scheduled follow-up for today or earlier
+            if (lastComm.outcome.nextActionDate) {
+              const nextActionDate = new Date(lastComm.outcome.nextActionDate);
+              nextActionDate.setHours(0, 0, 0, 0);
+              // Only include if the follow-up date is today or earlier
+              if (nextActionDate > today) {
+                return false; // Follow-up is in the future, don't show yet
+              }
+              // If follow-up is today or earlier, include it (fall through)
+            } else {
+              // Lead was picked but has no follow-up scheduled
+              // Don't show it in the calling queue
+              return false;
+            }
           }
 
-          // If lead was marked as "call later", check if it's time
-          if (lastComm.outcome?.result === 'call_later') {
+          // If lead was marked as "call later" (not picked), check if it's time
+          if (lastComm.outcome?.result === 'call_later' && !lastComm.outcome.picked) {
             return daysSinceLastComm >= 1; // Wait at least 1 day
           }
         }
