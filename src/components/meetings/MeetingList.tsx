@@ -10,8 +10,12 @@ interface MeetingListProps {
   user: User;
 }
 
+interface MeetingWithLead extends Meeting {
+  leadDetails?: Lead;
+}
+
 const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
-  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [meetings, setMeetings] = useState<MeetingWithLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -53,7 +57,32 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
         } : undefined
       } as Meeting));
 
-      setMeetings(meetingsData);
+      // Fetch lead details for each meeting
+      const meetingsWithLeads = await Promise.all(
+        meetingsData.map(async (meeting) => {
+          try {
+            const leadDoc = await getDocs(query(collection(db, 'leads'), where('__name__', '==', meeting.leadId)));
+            if (!leadDoc.empty) {
+              const leadData = leadDoc.docs[0].data();
+              return {
+                ...meeting,
+                leadDetails: {
+                  id: leadDoc.docs[0].id,
+                  ...leadData,
+                  createdAt: leadData.createdAt?.toDate(),
+                  updatedAt: leadData.updatedAt?.toDate()
+                } as Lead
+              };
+            }
+            return meeting;
+          } catch (error) {
+            console.error('Error fetching lead details:', error);
+            return meeting;
+          }
+        })
+      );
+
+      setMeetings(meetingsWithLeads);
     } catch (error) {
       console.error('Error fetching meetings:', error);
     } finally {
@@ -126,7 +155,11 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
   };
 
   const filteredMeetings = meetings.filter(meeting => {
+    const leadName = meeting.leadDetails?.companyName || meeting.leadDetails?.name || '';
+    const leadPhone = meeting.leadDetails?.managerPhone || meeting.leadDetails?.companyPhone || meeting.leadDetails?.phone || '';
     const matchesSearch = meeting.leadId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         leadPhone.includes(searchTerm) ||
                          meeting.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (meeting.notes && meeting.notes.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter;
@@ -172,7 +205,7 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search meetings by lead ID, location, or notes..."
+            placeholder="Search by company name, phone, location, or notes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -237,10 +270,24 @@ const MeetingList: React.FC<MeetingListProps> = ({ user }) => {
 
               {/* Meeting Info */}
               <div className="space-y-2 mb-3">
-                <div className="flex items-center text-sm text-gray-600">
-                  <UserIcon className="w-3 h-3 mr-2 flex-shrink-0" />
-                  <span className="truncate">Lead: {meeting.leadId.slice(-6)}</span>
-                </div>
+                {meeting.leadDetails && (
+                  <>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <UserIcon className="w-3 h-3 mr-2 flex-shrink-0" />
+                      <span className="truncate font-medium text-gray-800">
+                        {meeting.leadDetails.companyName || meeting.leadDetails.name || 'Unknown Lead'}
+                      </span>
+                    </div>
+                    {(meeting.leadDetails.managerPhone || meeting.leadDetails.companyPhone || meeting.leadDetails.phone) && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Phone className="w-3 h-3 mr-2 flex-shrink-0" />
+                        <span className="truncate">
+                          {meeting.leadDetails.managerPhone || meeting.leadDetails.companyPhone || meeting.leadDetails.phone}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
                 <div className="flex items-center text-sm text-gray-600">
                   <Clock className="w-3 h-3 mr-2 flex-shrink-0" />
                   <span className="truncate">{meeting.scheduledAt.toLocaleString()}</span>

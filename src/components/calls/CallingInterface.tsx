@@ -66,12 +66,24 @@ const CallingInterface: React.FC<CallingInterfaceProps> = ({ user }) => {
       );
       
       const snapshot = await getDocs(q);
-      const allLeads = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate()
-      } as Lead));
+      const allLeads = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate(),
+          updatedAt: data.updatedAt?.toDate(),
+          currentlyCallingAt: data.currentlyCallingAt?.toDate?.() || null,
+          communications: data.communications?.map((comm: any) => ({
+            ...comm,
+            createdAt: comm.createdAt?.toDate ? comm.createdAt.toDate() : comm.createdAt,
+            outcome: comm.outcome ? {
+              ...comm.outcome,
+              nextActionDate: comm.outcome.nextActionDate?.toDate ? comm.outcome.nextActionDate.toDate() : comm.outcome.nextActionDate
+            } : undefined
+          })) || []
+        } as Lead;
+      });
 
       // Filter leads based on calling rules
       const callableLeads = allLeads.filter(lead => {
