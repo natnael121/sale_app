@@ -66,9 +66,13 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ user }) => {
   }, [user.organizationId]);
 
   useEffect(() => {
-    if (mapContainerRef.current && !mapRef.current) {
-      initializeMap();
-    }
+    const timer = setTimeout(() => {
+      if (mapContainerRef.current && !mapRef.current) {
+        initializeMap();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
