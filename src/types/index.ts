@@ -41,6 +41,8 @@ export interface Lead {
   sector?: string;
   email?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   source: string;
   status: 'new' | 'contacted' | 'interested' | 'meeting_scheduled' | 'meeting_completed' | 'converted' | 'closed';
   assignedTo?: string;

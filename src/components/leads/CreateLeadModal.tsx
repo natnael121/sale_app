@@ -4,6 +4,7 @@ import { db } from '../../config/firebase';
 import { User } from '../../types';
 import { UserPlus, X, Phone, Building2, FileText } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import LocationPicker from './LocationPicker';
 
 interface CreateLeadModalProps {
   user: User;
@@ -24,15 +25,22 @@ interface LeadFormData {
 const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ user, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LeadFormData>();
+
+  const handleLocationSelect = (lat: number, lng: number) => {
+    setLatitude(lat);
+    setLongitude(lng);
+  };
 
   const onSubmit = async (data: LeadFormData) => {
     setLoading(true);
     setError('');
 
     try {
-      await addDoc(collection(db, 'leads'), {
+      const leadData: any = {
         ...data,
         organizationId: user.organizationId,
         status: 'new',
@@ -48,7 +56,14 @@ const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ user, onClose, onSucc
         }] : [],
         communications: [],
         meetings: []
-      });
+      };
+
+      if (latitude !== null && longitude !== null) {
+        leadData.latitude = latitude;
+        leadData.longitude = longitude;
+      }
+
+      await addDoc(collection(db, 'leads'), leadData);
 
       onSuccess();
     } catch (error: any) {
@@ -210,6 +225,13 @@ const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ user, onClose, onSucc
               placeholder="Add any notes about this lead..."
             />
           </div>
+
+          {/* 8. Location Picker */}
+          <LocationPicker
+            onLocationSelect={handleLocationSelect}
+            initialLatitude={latitude || undefined}
+            initialLongitude={longitude || undefined}
+          />
 
           <div className="flex items-center justify-end space-x-4 pt-6 border-t">
             <button
