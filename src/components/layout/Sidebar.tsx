@@ -2,9 +2,9 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../config/firebase';
-import { 
-  LayoutDashboard, Users, Phone, MapPin, BarChart3, 
-  DollarSign, Settings, LogOut, UserCheck, Calendar, Building2 
+import {
+  LayoutDashboard, Users, Phone, MapPin, BarChart3,
+  DollarSign, Settings, LogOut, UserCheck, Calendar, Building2, Map
 } from 'lucide-react';
 import { User } from '../../types';
 
@@ -33,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user }) => {
           { to: '/users', icon: Users, label: 'Team Management' },
           { to: '/leads', icon: UserCheck, label: 'Leads' },
           { to: '/meetings', icon: Calendar, label: 'Meetings' },
+          { to: '/map', icon: Map, label: 'Field Operations Map' },
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
           { to: '/commissions', icon: DollarSign, label: 'Commissions' },
         ];
