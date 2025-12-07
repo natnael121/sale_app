@@ -46,26 +46,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   }, [user.organizationId]);
 
   useEffect(() => {
-    if (mapContainerRef.current && !mapRef.current && !mapInitialized) {
+    if (mapContainerRef.current && !mapRef.current) {
       const timer = setTimeout(() => {
         initializeMap();
-        setMapInitialized(true);
-      }, 300);
+      }, 100);
       return () => clearTimeout(timer);
     }
-  }, [mapInitialized]);
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
-    if (mapRef.current && mapInitialized) {
+    if (mapRef.current && mapData.meetings.length > 0) {
       updateMapMarkers();
     }
-  }, [mapData, mapInitialized]);
+  }, [mapData]);
 
   const initializeMap = () => {
     if (!mapContainerRef.current || mapRef.current) return;
 
     try {
-      const map = L.map(mapContainerRef.current).setView([9.0320, 38.7469], 13);
+      const map = L.map(mapContainerRef.current, {
+        center: [9.0320, 38.7469],
+        zoom: 13,
+        zoomControl: true,
+        scrollWheelZoom: true,
+      });
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
@@ -74,11 +85,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
 
       mapRef.current = map;
 
+      // Force map to recalculate size after initialization
       setTimeout(() => {
         if (mapRef.current) {
           mapRef.current.invalidateSize();
         }
-      }, 200);
+      }, 100);
     } catch (error) {
       console.error('Error initializing map:', error);
     }
@@ -377,8 +389,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <div
             ref={mapContainerRef}
-            className="w-full h-[400px]"
-            style={{ backgroundColor: '#f0f0f0' }}
+            className="w-full"
+            style={{ height: '400px', minHeight: '400px', backgroundColor: '#f0f0f0' }}
           />
         </div>
         <div className="bg-white rounded-xl shadow-sm border p-4 mt-4">

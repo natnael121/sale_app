@@ -1,15 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { User, Meeting, Lead } from '../../types';
-import { MapPin, Calendar, Camera, CheckCircle, Clock, Target, Phone, UserCheck, ArrowRight } from 'lucide-react';
+import { MapPin, Calendar, Camera, CheckCircle, Clock, Target, Phone, UserCheck, ArrowRight, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import * as L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface FieldAgentDashboardProps {
   user: User;
 }
 
+// Fix Leaflet default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
 const FieldAgentDashboard: React.FC<FieldAgentDashboardProps> = ({ user }) => {
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     todayMeetings: 0,
@@ -27,6 +41,132 @@ const FieldAgentDashboard: React.FC<FieldAgentDashboardProps> = ({ user }) => {
   useEffect(() => {
     fetchDashboardData();
   }, [user.id, user.organizationId]);
+
+  useEffect(() => {
+    if (mapContainerRef.current && !mapRef.current) {
+      const timer = setTimeout(() => {
+        initializeMap();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mapRef.current && (todaySchedule.length > 0 || myLeads.length > 0)) {
+      updateMapMarkers();
+    }
+  }, [todaySchedule, myLeads]);
+
+  const initializeMap = () => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    try {
+      const map = L.map(mapContainerRef.current, {
+        center: [9.0320, 38.7469],
+        zoom: 13,
+        zoomControl: true,
+        scrollWheelZoom: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      mapRef.current = map;
+
+      setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error initializing map:', error);
+    }
+  };
+
+  const updateMapMarkers = () => {
+    if (!mapRef.current) return;
+
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+
+    const bounds: L.LatLngBoundsExpression[] = [];
+
+    // Add markers for today's meetings with check-in locations
+    todaySchedule.forEach(meeting => {
+      if (meeting.checkIn) {
+        const { latitude, longitude } = meeting.checkIn.location;
+
+        const icon = L.divIcon({
+          className: 'custom-marker',
+          html: `<div class="flex items-center justify-center w-10 h-10 rounded-full ${
+            meeting.status === 'completed' ? 'bg-green-500' :
+            meeting.status === 'in_progress' ? 'bg-yellow-500' :
+            'bg-blue-500'
+          } shadow-lg border-2 border-white">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+            </svg>
+          </div>`,
+          iconSize: [40, 40],
+          iconAnchor: [20, 40],
+        });
+
+        const marker = L.marker([latitude, longitude], { icon }).addTo(mapRef.current!);
+        markersRef.current.push(marker);
+        bounds.push([latitude, longitude]);
+      }
+    });
+
+    // Add markers for leads with location data
+    myLeads.forEach(lead => {
+      if (lead.latitude && lead.longitude) {
+        const icon = L.divIcon({
+          className: 'custom-marker',
+          html: `<div class="flex items-center justify-center w-8 h-8 rounded-full ${
+            lead.status === 'converted' ? 'bg-emerald-500' :
+            lead.status === 'interested' ? 'bg-green-500' :
+            lead.status === 'contacted' ? 'bg-yellow-500' :
+            'bg-gray-500'
+          } shadow-lg border-2 border-white">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+        });
+
+        const marker = L.marker([lead.latitude, lead.longitude], { icon }).addTo(mapRef.current!);
+        markersRef.current.push(marker);
+        bounds.push([lead.latitude, lead.longitude]);
+      }
+    });
+
+    if (bounds.length > 0 && mapRef.current) {
+      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  };
+
+  const centerOnMyLocation = () => {
+    if (navigator.geolocation && mapRef.current) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        mapRef.current?.setView(
+          [position.coords.latitude, position.coords.longitude],
+          15
+        );
+      });
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -273,6 +413,66 @@ const FieldAgentDashboard: React.FC<FieldAgentDashboardProps> = ({ user }) => {
             </div>
             <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
           </Link>
+        </div>
+      </div>
+
+      {/* My Field Map */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-gray-800">My Field Map</h2>
+          <button
+            onClick={centerOnMyLocation}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <Navigation className="w-4 h-4" />
+            <span>My Location</span>
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div
+            ref={mapContainerRef}
+            className="w-full"
+            style={{ height: '400px', minHeight: '400px', backgroundColor: '#f0f0f0' }}
+          />
+        </div>
+
+        {/* Map Legend */}
+        <div className="bg-white rounded-xl shadow-sm border p-4 mt-4">
+          <div className="flex items-center space-x-2 mb-3">
+            <MapPin className="w-5 h-5 text-gray-600" />
+            <h3 className="font-semibold text-gray-800">Map Legend</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-green-500"></div>
+              <span className="text-sm text-gray-600">Completed Meeting</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+              <span className="text-sm text-gray-600">In Progress Meeting</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+              <span className="text-sm text-gray-600">Scheduled Meeting</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-emerald-500"></div>
+              <span className="text-sm text-gray-600">Converted Lead</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-green-500"></div>
+              <span className="text-sm text-gray-600">Interested Lead</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+              <span className="text-sm text-gray-600">Contacted Lead</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 rounded-full bg-gray-500"></div>
+              <span className="text-sm text-gray-600">New Lead</span>
+            </div>
+          </div>
         </div>
       </div>
 
