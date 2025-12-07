@@ -66,13 +66,16 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ user }) => {
   }, [user.organizationId]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (mapContainerRef.current && !mapRef.current) {
-        initializeMap();
-      }
-    }, 100);
+    if (mapContainerRef.current && !mapRef.current) {
+      initializeMap();
+    }
 
-    return () => clearTimeout(timer);
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -166,6 +169,11 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ user }) => {
       console.error('Error fetching map data:', error);
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
+      }, 100);
     }
   };
 
@@ -472,6 +480,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ user }) => {
         <div
           ref={mapContainerRef}
           className="w-full h-[600px]"
+          style={{ backgroundColor: '#f0f0f0' }}
         />
       </div>
 
