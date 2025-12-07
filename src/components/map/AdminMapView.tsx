@@ -4,7 +4,7 @@ import { db } from '../../config/firebase';
 import { User, Meeting, Lead } from '../../types';
 import { MapPin, Users, Calendar, CheckCircle, Filter, Search, Navigation, Layers, Eye, EyeOff } from 'lucide-react';
 import * as L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import 'leaflet/dist/leaflet.css'; 
 
 interface AdminMapViewProps {
   user: User;
